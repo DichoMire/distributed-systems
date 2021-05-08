@@ -1,11 +1,11 @@
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
-import java.io.BufferedWriter;
-import java.io.InputStreamWriter;
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
-
-import jdk.tools.jaotc.ELFMacroAssembler;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class Controller {
 
@@ -14,7 +14,15 @@ public class Controller {
     private int timeout;
     private int rebalancePeriod;
 
-    private string state;
+    private int state;
+
+    private int connectedStorages;
+
+    private ConcurrentHashMap<Integer, Socket> storages = new ConcurrentHashMap<Integer, Socket>();
+
+    private ConcurrentHashMap<String, FileInfo> fileIndex = new ConcurrentHashMap<String, FileInfo>();
+
+    //Concurrent queue for operations added in queue during rebalance
 
     //int cport, int replication, int timeout, int rebalancePeriod
     public Controller (String [] args)
@@ -23,29 +31,23 @@ public class Controller {
         this.replication = Integer.parseInt(args[1]);
         this.timeout = Integer.parseInt(args[2]);
         this.rebalancePeriod = Integer.parseInt(args[3]);
-        this.state = "Waiting";
+        this.state = States.INITIAL_CONTROLLER;
+        System.out.println("Controller initialized");
+
+        connectedStorages = 0;
         // this.cport = cport;
         // this.replication = replication;
         // this.timeout = timeout;
         // this.rebalancePeriod = rebalancePeriod;
+        mainSequence();
     }
-
-    // private void parseInput()
-    // {
-    //     this.cport = Integer.parseInt(args[0]);
-    //     this.replication = Integer.parseInt(args[1]);
-    //     this.timeout = Integer.parseInt(args[2]);
-    //     this.rebalancePeriod = Integer.parseInt(args[3]);
-    // }
 
     public static void main(String [] args)
     {
-        Controller mainCoontroller = new Controller(args);
-
-        mainCoontroller.mainSequence();
+        Controller mainController = new Controller(args);
     }
 
-    public void mainSequence()
+    private void mainSequence()
     {
         try
         {
@@ -55,66 +57,87 @@ public class Controller {
                 try
                 {
                     //Awaits connection
-                    Socket client = ss.accept();
+                    System.out.println("Waiting connection");
+                    Socket contact = ss.accept();
+                    System.out.println("Connected to port: " + contact.getLocalPort());
+
                     new Thread(() -> {
-                        //Mitak Copy
-                        BufferedReader clientInput = new BufferedReader(new InputStreamReader(client.getInputStream()));
-                        //Mitak Copy
-                        BufferedWriter clientOutput = new BufferedWriter(new InputStreamWriter(client.getOutputStream()));
-                        
-                        InputStreamReader in = client.getInputStream();
-
-                        byte[] buf = new byte[1000];
-                        int buflen;
-
-                        for(;;)
+                        try
                         {
-                            buflen = in.read(buf);
-                            if(buflen != -1)
-                            {
-                                String firstBuffer = new String(buf, 0, buflen);
-                                int firstSpace = firstBuffer.indexOf(" ");
-                                String command;
-                                try
+                            BufferedReader contactInput = new BufferedReader(new InputStreamReader(contact.getInputStream()));
+                            PrintWriter contactOutput = new PrintWriter(new OutputStreamWriter(contact.getOutputStream()),true);
+
+                            for(;;)
+                            { 
+                                if(contactInput.ready())
                                 {
-                                    command = firstBuffer.substring(0, firstSpace);
-                                }
-                                catch(Exception e)
-                                {
-                                    command = "Missing command";
-                                }
+                                    String firstBuffer = contactInput.readLine();
+                                    int firstSpace = firstBuffer.indexOf(" ");
+                                    String command;
+                                    try
+                                    {
+                                        command = firstBuffer.substring(0, firstSpace);
+                                    }
+                                    catch(Exception e)
+                                    {
+                                        command = "Missing command";
+                                    }
 
-                                System.out.println("Command is: " + command);
+                                    System.out.println("Command is: " + command);
 
-                                //Store command
-                                if(command.equals(Protocol.STORE_TOKEN)){
-                                    int secondSpace = firstBuffer.indexOf(" ", firstSpace + 1);
-                                    int thirdSpace = firstBuffer.indexOf(" ", secondSpace + 1);
+                                    //Join command
+                                    //This command is only used by DStores to initialize
+                                    if(command.equals(Protocol.JOIN_TOKEN)){
+                                        int secondSpace = firstBuffer.indexOf(" ", firstSpace + 1);
+                                        int port = Integer.parseInt(firstBuffer.substring(firstSpace + 1, secondSpace));
 
-                                    String fileName = firstBuffer.substring(firstSpace + 1, secondSpace);
-                                    int fileSize = Integer.parseInt(firstBuffer.substring(secondSpace + 1, thirdSpace));
+                                        //Is this even required?
+                                        if(!storages.contains(port))
+                                        {
+                                            storages.put(port, contact);
+                                            connectedStorages++;
+                                        }
+                                    }
+                                    //Client store command
+                                    else if(command.equals(Protocol.STORE_TOKEN)){
+                                        int secondSpace = firstBuffer.indexOf(" ", firstSpace + 1);
+                                        int thirdSpace = firstBuffer.indexOf(" ", secondSpace + 1);
 
-                                    clientOutput.write(Protocol.STORE_TO_TOKEN + " " + getStoreToPorts());
-                                    clientOutput.flush();
-                                }
-                                else if(command.equals(Protocol.STORE_ACK_TOKEN))
-                                {
+                                        String fileName = firstBuffer.substring(firstSpace + 1, secondSpace);
+                                        int fileSize = Integer.parseInt(firstBuffer.substring(secondSpace + 1, thirdSpace));
+                                        
+                                        //We need to check if file is present
 
-                                }
-                                else if(true)
-                                {
+                                        contactOutput.println(Protocol.STORE_TO_TOKEN + " " + getStoreToPorts());
+                                    }
+                                    else if(command.equals(Protocol.LIST_TOKEN))
+                                    {
+                                        Set<String> keys = fileIndex.keySet();
 
+                                        String fileList = "";
+
+                                        for(String key: keys)
+                                        {
+                                            fileList += key + " ";
+                                        }
+                                        fileList = fileList.substring(0, fileList.length()-1);
+
+                                        contactOutput.println(Protocol.LIST_TOKEN + " " + fileList);
+                                    }
+                                    else if(command.equals(Protocol.STORE_ACK_TOKEN))
+                                    {
+
+                                    }
                                 }
                             }
-                            else
-                            {
-                                //Do nothing
-                            }
+                        } 
+                        catch(Exception e)
+                        {
+                            //No connection found
+                            System.out.println("error "+e);
                         }
-
-                        //???????
-                        client.close(); 
-                    });
+                    }).start();
+                    contact.close(); 
                 }   
                 catch(Exception e)
                 {
@@ -132,6 +155,13 @@ public class Controller {
 
     private String getStoreToPorts()
     {
-        return "";
+        String ports = "";
+        Set<Integer> keys = storages.keySet();
+        for(Integer key: keys)
+        {
+            ports += Integer.toString(key) + " ";
+        }
+        ports = ports.substring(0, ports.length()-1);
+        return ports;
     }
 }
