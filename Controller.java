@@ -1,4 +1,5 @@
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
@@ -19,7 +20,7 @@ public class Controller {
 
     private int connectedStorages;
 
-    private ConcurrentHashMap<Integer, Socket> storages = new ConcurrentHashMap<Integer, Socket>();
+    private ConcurrentHashMap<Integer, StorageInfo> storages = new ConcurrentHashMap<Integer, StorageInfo>();
 
     private ConcurrentHashMap<String, FileInfo> fileIndex = new ConcurrentHashMap<String, FileInfo>();
 
@@ -32,14 +33,9 @@ public class Controller {
         this.replication = Integer.parseInt(args[1]);
         this.timeout = Integer.parseInt(args[2]);
         this.rebalancePeriod = Integer.parseInt(args[3]);
-        this.state = States.INITIAL_CONTROLLER;
-        System.out.println("Controller initialized");
+        updateStorageCount();
 
-        connectedStorages = 0;
-        // this.cport = cport;
-        // this.replication = replication;
-        // this.timeout = timeout;
-        // this.rebalancePeriod = rebalancePeriod;
+        System.out.println("Controller initialized");
         mainSequence();
     }
 
@@ -58,9 +54,9 @@ public class Controller {
                 try
                 {
                     //Awaits connection
-                    System.out.println("Waiting connection");
+                    System.out.println("Awaiting connection with client or Dstore.");
                     Socket contact = ss.accept();
-                    System.out.println("Connected to port: " + contact.getPort());
+                    System.out.println("Connection to port: " + contact.getPort() + " established.");
 
                     new Thread(() -> {
                         BufferedReader contactInput;
@@ -70,12 +66,11 @@ public class Controller {
                         {
                             contactInput = new BufferedReader(new InputStreamReader(contact.getInputStream()));
                             contactOutput = new PrintWriter(new OutputStreamWriter(contact.getOutputStream()),true);
-
                         } 
                         catch(Exception e)
                         {
                             //No connection found
-                            System.out.println("Could not setup IO of contact: " + Integer.toString(contact.getPort()) + " error: " +e);
+                            System.out.println("Could not setup IO of contact: " + contact.getPort() + " error: " +e);
                             return;
                         }
                         for(;;)
@@ -87,57 +82,99 @@ public class Controller {
                                     String[] message = contactInput.readLine().split(" ");
                                     String command = message[0];
 
-
-                                    //For debugging purposes. Probabkly redundant
-                                    // if(command.equals(""))
-                                    // {
-                                    //     command = "Missing command";
-                                    // }
-                                    System.out.println("Command is: " + command);
-
                                     //Join command
                                     //This command is only used by DStores to initialize
                                     if(command.equals(Protocol.JOIN_TOKEN)){
                                         int port = Integer.parseInt(message[1]);
 
+                                        System.out.println("Storage " + port + " sent command JOIN from port " + contact.getPort());
+
                                         //Is this even required?
-                                        if(!storages.contains(port))
+                                        if(!storages.containsKey(port))
                                         {
                                             System.out.println("Adding storage with port: " + Integer.toString(port));
-                                            storages.put(port, contact);
-                                            connectedStorages++;
+                                            storages.put(port, new StorageInfo(contact, contactInput, contactOutput));
+                                            updateStorageCount();
                                         }
                                     }
                                     //Client store command
                                     else if(command.equals(Protocol.STORE_TOKEN)){
-                                        String fileName = message[1];
-                                        int fileSize = Integer.parseInt(message[2]);
-                                        
-                                        //We need to check if file is present
+                                        if(state == States.INSUFFICIENT_REPLICATION)
+                                        {
+                                            System.out.println("Insufficient replication. Command not executed.");
+                                            contactOutput.println(Protocol.ERROR_NOT_ENOUGH_DSTORES_TOKEN);
+                                        }
+                                        else 
+                                        {
+                                            String fileName = message[1];
+                                            int fileSize = Integer.parseInt(message[2]);
+    
+                                            System.out.println("Client " + contact.getPort() + " sent command STORE . FileName: " + fileName + " FileSize: " + fileSize);
+    
+                                            //Super detailed message
+                                            //System.out.println("Current fileIndex: " + fileIndex.toString() + " attempting to add: " + fileName + " boolean: " + fileIndex.containsKey(fileName));
 
-                                        System.out.println("Sending StoreTo command to ports: " + getStoreToPorts());
-                                        contactOutput.println(Protocol.STORE_TO_TOKEN + " " + getStoreToPorts());
+                                            //If the index already contains the file and the file has not already been removed
+                                            //We tell the client the error
+                                            if(fileIndex.containsKey(fileName))
+                                            { 
+                                                System.out.println("Client " + contact.getPort() + " attempted to add file: " + fileName + " But it already exists.");
+                                                contactOutput.println(Protocol.ERROR_FILE_ALREADY_EXISTS_TOKEN);
+                                            }
+                                            //We also need to check if we have Rep factor
+                                            else
+                                            {
+                                                //Adding new file to the index
+                                                String storeToPorts = getStoreToPorts();
+                                                fileIndex.put(fileName,new FileInfo(fileSize, replication, storeToPorts, contact));
+                                                System.out.println("Sending to client: " + contact.getPort() + " STORE_TO command to ports: " + storeToPorts);
+                                                contactOutput.println(Protocol.STORE_TO_TOKEN + " " + storeToPorts);
+                                            }
+                                        }
                                     }
+                                    //Client list command
                                     else if(command.equals(Protocol.LIST_TOKEN))
                                     {
-                                        Set<String> keys = fileIndex.keySet();
-
-                                        String fileList = "";
-
-                                        for(String key: keys)
+                                        if(state == States.INSUFFICIENT_REPLICATION)
                                         {
-                                            fileList += key + " ";
+                                            System.out.println("Insufficient replication. Command not executed.");
+                                            contactOutput.println(Protocol.ERROR_NOT_ENOUGH_DSTORES_TOKEN);
                                         }
-                                        if(fileList.length() > 0)
+                                        else 
                                         {
-                                            fileList = fileList.substring(0, fileList.length()-1);
-                                        }
+                                            System.out.println("Client " + contact.getPort() + " sent command LIST .");
 
-                                        contactOutput.println(Protocol.LIST_TOKEN + " " + fileList);
+                                            Set<String> keys = fileIndex.keySet();
+    
+                                            String fileList = "";
+    
+                                            for(String key: keys)
+                                            {
+                                                if(fileIndex.get(key).getState() == States.STORE_COMPLETE)
+                                                {
+                                                    fileList += key + " ";
+                                                }
+                                            }
+                                            if(fileList.length() > 0)
+                                            {
+                                                fileList = fileList.substring(0, fileList.length()-1);
+                                            }
+    
+                                            contactOutput.println(Protocol.LIST_TOKEN + " " + fileList);
+                                        }
                                     }
+                                    //Storage STORE_ACK command
                                     else if(command.equals(Protocol.STORE_ACK_TOKEN))
                                     {
-
+                                        String fileName = message[1];
+                                        if(fileIndex.get(fileName).decreaseAcks())
+                                        {
+                                            PrintWriter requestOutput = new PrintWriter(new OutputStreamWriter(fileIndex.get(fileName).getModifier().getOutputStream()),true);
+                                            requestOutput.println(Protocol.STORE_COMPLETE_TOKEN);
+                                            
+                                            fileIndex.get(fileName).setState(States.STORE_COMPLETE);
+                                            //Maybe close contact socket here?
+                                        }
                                     }
                                 }
                             }
@@ -160,6 +197,20 @@ public class Controller {
         {
             System.out.println("Could not connect to Controller Server socket: "+e);
             //Error with Server Socket setup
+        }
+    }
+
+    private void updateStorageCount()
+    {
+        connectedStorages = storages.size();
+
+        if(connectedStorages >= replication)
+        {
+            state = States.SUFFICIENT_REPLICATION;
+        }
+        else
+        {
+            state = States.INSUFFICIENT_REPLICATION;
         }
     }
 

@@ -20,7 +20,7 @@ public class ClientMain {
 		//testClient(cport, timeout, downloadFolder);
 		
 		// example to launch a number of concurrent clients, each doing the same operations
-		for (int i = 0; i < 2; i++) {
+		for (int i = 0; i < 1; i++) {
 			new Thread() {
 				public void run() {
 					test2Client(cport, timeout, downloadFolder, uploadFolder);

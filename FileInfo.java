@@ -1,3 +1,4 @@
+import java.net.Socket;
 import java.util.ArrayList;
 
 public class FileInfo {
@@ -12,10 +13,32 @@ public class FileInfo {
 
     private int fileSize;
 
-    public FileInfo()
+    private int remainingAcks;
+
+    private Socket lastModifier;
+
+    public FileInfo(int fileSize, int remainingAcks, String ports, Socket lastModifier)
     {
-        state = States.INITIAL_FILE;
+        this.fileSize = fileSize;
+        state = States.STORE_IN_PROGRESS;
         storages = new ArrayList<Integer>();
+        setStorages(ports);
+        this.lastModifier = lastModifier;
+        this.remainingAcks = remainingAcks;
+    }
+
+    //Decreases ACKs required by one.
+    //Returns true if store has been completed
+    //False otherwise
+    public boolean decreaseAcks()
+    {
+        remainingAcks--;
+        if(remainingAcks == 0)
+        {
+            state = States.STORE_COMPLETE;
+            return true;
+        }
+        return true;
     }
 
     public void setState(int state)
@@ -28,11 +51,45 @@ public class FileInfo {
         return state;
     }
 
-    //Functions for file list functionality
+    public void setSize(int fileSize)
+    {
+        this.fileSize = fileSize;
+    }
 
-    //Add a file
-    
-    //Remove a file
+    public int getSize()
+    {   
+        return fileSize;
+    }
 
-    //Return a space separated list of files
+    public void setStorages(String input)
+    {
+        String[] list = input.split(" ");
+        for(String stor: list)
+        {
+            storages.add(Integer.parseInt(stor));
+        }
+    }
+
+    public String getStorages()
+    {
+        String result = "";
+        for(Integer stor: storages)
+        {
+            result += Integer.toString(stor) + " ";
+        }
+        if(result.length() > 0)
+        {
+            result.substring(0, result.length() - 1);
+        }
+        return result;
+    }
+
+    public Socket getModifier()
+    {
+        return lastModifier;
+    }
+
+    //No remove file functionality.
+
+    //No rebalance functionality
 }

@@ -61,29 +61,34 @@ public class Dstore {
             new Thread(() -> {
                 try 
                 {
-                    controllerOutput.println(Protocol.JOIN_TOKEN + " " + port);
-                    //Deletes previous entry and creates a new storage directory
-                    try
+                    Path currentPath = Paths.get(System.getProperty("user.dir") + File.separator + fileFolder + File.separator);
+                    if(Files.exists(currentPath))
                     {
-                        Path currentPath = Paths.get(System.getProperty("user.dir") + File.separator + fileFolder + File.separator);
-                        if(Files.exists(currentPath))
+                        File dir = new File(currentPath.toString());
+                        File[] fileList = dir.listFiles();
+                        for(File file: fileList)
                         {
-                            File dir = new File(currentPath.toString());
-                            File[] fileList = dir.listFiles();
-                            for(File file: fileList)
-                            {
-                                file.delete();
-                            }
-                        }
-                        else
-                        {
-                            Files.createDirectory(currentPath);
+                            file.delete();
                         }
                     }
-                    catch(Exception ignored){};
+                    else
+                    {
+                        Files.createDirectory(currentPath);
+                    }
+                    System.out.println("Cleared FileFolder");
                     
-                    System.out.println("Sent request to controller to join.");
-                    
+                    //Deletes previous entry and creates a new storage directory
+                    try
+                    {   
+                        controllerOutput.println(Protocol.JOIN_TOKEN + " " + port);
+                        System.out.println("Sent JOIN request to Controller.");
+                    }
+                    catch(Exception e)
+                    {
+                        System.out.println("Could not write to controller "+e);
+                        return;
+                    }
+
                     for(;;)
                     {
                         try
@@ -93,10 +98,10 @@ public class Dstore {
                                 String[] message = controllerInput.readLine().split(" ");
                                 String command = message[0];
 
-                                System.out.println("Command is: " + command);
-
                                 if(command.equals(Protocol.LIST_TOKEN))
                                 {   
+                                    System.out.println("Controller " + controller.getPort() + " sent command LIST .");
+
                                     String fileList = "";
                                     Set<String> keys = fileIndex.keySet();
                                     for(String key: keys)
@@ -116,10 +121,7 @@ public class Dstore {
                     }
 
                 }
-                catch(Exception e)
-                {
-                    System.out.println("Could not write to controller "+e);
-                }
+                catch(Exception ignored){}
             }).start();
 
             //Looks for clients to connect to
@@ -133,11 +135,8 @@ public class Dstore {
                     {
                         System.out.println("Awaiting connecting with client.");
                         Socket client = ss.accept();
-                        System.out.println("Connection with client established.");
+                        System.out.println("Connection with client: " + client.getPort() + " established.");
                         //Probably not required
-
-                        System.out.println("Cport: " + cport);
-                        System.out.println("Client port: " + client.getPort());
                         if(client.getPort() == cport)
                         {
                             System.out.println("Controller attempted to connect as a client!!!");
@@ -163,17 +162,17 @@ public class Dstore {
                                         {
                                             String[] message = clientInput.readLine().split(" ");
                                             String command = message[0];
-
-                                            System.out.println("Command is: " + command);
         
                                             if(command.equals(Protocol.STORE_TOKEN))
                                             {
                                                 String fileName = message[1];
                                                 int fileSize = Integer.parseInt(message[2]);
+
+                                                System.out.println("Client " + client.getPort() + " sent command STORE . FileName: " + fileName + " FileSize: " + fileSize);
                                                 
                                                 clientOutput.println(Protocol.ACK_TOKEN);
 
-                                                System.out.println("Sent ACK to client for file: " + fileName);
+                                                System.out.println("Sent ACK to client " + client.getPort() + " for file: " + fileName);
 
                                                 File file = new File("");
                                                 String currentPath = file.getAbsolutePath();
@@ -190,7 +189,7 @@ public class Dstore {
                                                 System.out.println("Starting to receive file of size: " + Integer.toString(fileSize));
 
                                                 byte[] contentBuf = clientInputStream.readNBytes(fileSize);
-                                                System.out.println("Received file " + fileName + " from client");
+                                                System.out.println("Received file " + fileName + " from client " + client.getPort());
 
                                                 String content = new String(contentBuf);
         
@@ -198,12 +197,13 @@ public class Dstore {
                                                 fw.write(content);
                                                 fw.close();
                                                 
+                                                System.out.println("Sending STORE_ACK token to controller " + controller.getPort());
                                                 controllerOutput.println(Protocol.STORE_ACK_TOKEN + " " + fileName);
 
                                                 fileIndex.put(fileName, fileSize);
 
                                                 client.close();
-                                                System.out.println("Client request complete. Closing connection.");
+                                                System.out.println("Client " + client.getPort() + " request complete. Closing connection.");
                                                 break;
                                             }
                                         }
