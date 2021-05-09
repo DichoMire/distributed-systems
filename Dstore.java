@@ -9,6 +9,9 @@ import java.io.PrintWriter;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Set;
 
@@ -33,7 +36,6 @@ public class Dstore {
 
     public Dstore (String[] args)
     {
-        
         this.port = Integer.parseInt(args[0]);
         this.cport = Integer.parseInt(args[1]);
         this.timeout = Integer.parseInt(args[2]);
@@ -41,8 +43,9 @@ public class Dstore {
 
         fileIndex = new HashMap<String, Integer>();
 
+
+
         mainSequence();
-        
     }
 
     private void mainSequence()
@@ -59,7 +62,28 @@ public class Dstore {
                 try 
                 {
                     controllerOutput.println(Protocol.JOIN_TOKEN + " " + port);
-
+                    //Deletes previous entry and creates a new storage directory
+                    try
+                    {
+                        Path currentPath = Paths.get(System.getProperty("user.dir") + File.separator + fileFolder + File.separator);
+                        if(Files.exists(currentPath))
+                        {
+                            File dir = new File(currentPath.toString());
+                            File[] fileList = dir.listFiles();
+                            for(File file: fileList)
+                            {
+                                file.delete();
+                            }
+                        }
+                        else
+                        {
+                            Files.createDirectory(currentPath);
+                        }
+                    }
+                    catch(Exception ignored){};
+                    
+                    System.out.println("Sent request to controller to join.");
+                    
                     for(;;)
                     {
                         try
@@ -87,14 +111,14 @@ public class Dstore {
                         }
                         catch(Exception e)
                         {
-                            System.out.println("error "+e);
+                            System.out.println("Could not read from controller"+e);
                         }
                     }
 
                 }
                 catch(Exception e)
                 {
-                    
+                    System.out.println("Could not write to controller "+e);
                 }
             }).start();
 
@@ -107,10 +131,16 @@ public class Dstore {
                 {
                     try
                     {
+                        System.out.println("Awaiting connecting with client.");
                         Socket client = ss.accept();
+                        System.out.println("Connection with client established.");
                         //Probably not required
+
+                        System.out.println("Cport: " + cport);
+                        System.out.println("Client port: " + client.getPort());
                         if(client.getPort() == cport)
                         {
+                            System.out.println("Controller attempted to connect as a client!!!");
                             continue;
                         }
 
@@ -118,11 +148,11 @@ public class Dstore {
                         new Thread(() -> {
                             try
                             {
-                                BufferedReader clientInput = new BufferedReader(new InputStreamReader(controller.getInputStream()));
-                                PrintWriter clientOutput = new PrintWriter(new OutputStreamWriter(controller.getOutputStream()));
+                                BufferedReader clientInput = new BufferedReader(new InputStreamReader(client.getInputStream()));
+                                PrintWriter clientOutput = new PrintWriter(new OutputStreamWriter(client.getOutputStream()),true);
                                 
-                                InputStream clientInputStream = controller.getInputStream();
-                                OutputStream clientOutputStream = controller.getOutputStream();           
+                                InputStream clientInputStream = client.getInputStream();
+                                OutputStream clientOutputStream = client.getOutputStream();           
         
                                 for(;;)
                                 {
@@ -143,9 +173,11 @@ public class Dstore {
                                                 
                                                 clientOutput.println(Protocol.ACK_TOKEN);
 
+                                                System.out.println("Sent ACK to client for file: " + fileName);
+
                                                 File file = new File("");
                                                 String currentPath = file.getAbsolutePath();
-                                                file = new File(currentPath + File.separator + fileName);
+                                                file = new File(currentPath + File.separator + fileFolder + File.separator + fileName);
         
                                                 // try
                                                 // {
@@ -155,8 +187,11 @@ public class Dstore {
                                                 // {
                                                 //     System.out.println("error "+e);
                                                 // }
-        
+                                                System.out.println("Starting to receive file of size: " + Integer.toString(fileSize));
+
                                                 byte[] contentBuf = clientInputStream.readNBytes(fileSize);
+                                                System.out.println("Received file " + fileName + " from client");
+
                                                 String content = new String(contentBuf);
         
                                                 FileWriter fw = new FileWriter(file);
@@ -168,6 +203,7 @@ public class Dstore {
                                                 fileIndex.put(fileName, fileSize);
 
                                                 client.close();
+                                                System.out.println("Client request complete. Closing connection.");
                                                 break;
                                             }
                                         }
