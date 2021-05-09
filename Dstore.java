@@ -29,12 +29,6 @@ public class Dstore {
 
     //Hashmap with clients?
 
-    private int state;
-
-    private String newFileName;
-    private int newFileSize;
-
-
     private HashMap<String, Integer> fileIndex;
 
     public Dstore (String[] args)
@@ -72,17 +66,9 @@ public class Dstore {
                         {
                             if(controllerInput.ready())
                             {
-                                String firstBuffer = controllerInput.readLine();
-                                int firstSpace = firstBuffer.indexOf(" ");
-                                String command;
-                                try
-                                {
-                                    command = firstBuffer.substring(0, firstSpace);
-                                }
-                                catch(Exception e)
-                                {
-                                    command = "Missing command";
-                                }
+                                String[] message = controllerInput.readLine().split(" ");
+                                String command = message[0];
+
                                 System.out.println("Command is: " + command);
 
                                 if(command.equals(Protocol.LIST_TOKEN))
@@ -96,7 +82,6 @@ public class Dstore {
                                     fileList = fileList.substring(0, fileList.length()-1);
 
                                     controllerOutput.println(Protocol.LIST_TOKEN + " " + fileList);
-                                    // controllerOutput.flush();
                                 }
                             }
                         }
@@ -124,7 +109,7 @@ public class Dstore {
                     {
                         Socket client = ss.accept();
                         //Probably not required
-                        if(client.getLocalPort() == cport)
+                        if(client.getPort() == cport)
                         {
                             continue;
                         }
@@ -146,26 +131,15 @@ public class Dstore {
                                         // buflen = in.read(buf);
                                         if(clientInput.ready())
                                         {
-                                            String firstBuffer = clientInput.readLine();
-                                            int firstSpace = firstBuffer.indexOf(" ");
-                                            String command;
-                                            try
-                                            {
-                                                command = firstBuffer.substring(0, firstSpace);
-                                            }
-                                            catch(Exception e)
-                                            {
-                                                command = "Missing command";
-                                            }
+                                            String[] message = clientInput.readLine().split(" ");
+                                            String command = message[0];
+
                                             System.out.println("Command is: " + command);
         
                                             if(command.equals(Protocol.STORE_TOKEN))
                                             {
-                                                int secondSpace = firstBuffer.indexOf(" ", firstSpace + 1);
-                                                int thirdSpace = firstBuffer.indexOf(" ", secondSpace + 1);
-        
-                                                String fileName = firstBuffer.substring(firstSpace + 1, secondSpace);
-                                                int fileSize = Integer.parseInt(firstBuffer.substring(secondSpace + 1, thirdSpace));
+                                                String fileName = message[1];
+                                                int fileSize = Integer.parseInt(message[2]);
                                                 
                                                 clientOutput.println(Protocol.ACK_TOKEN);
 
@@ -182,7 +156,7 @@ public class Dstore {
                                                 //     System.out.println("error "+e);
                                                 // }
         
-                                                byte[] contentBuf = clientInputStream.readNBytes(newFileSize);
+                                                byte[] contentBuf = clientInputStream.readNBytes(fileSize);
                                                 String content = new String(contentBuf);
         
                                                 FileWriter fw = new FileWriter(file);

@@ -1,4 +1,5 @@
 import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
@@ -59,55 +60,62 @@ public class Controller {
                     //Awaits connection
                     System.out.println("Waiting connection");
                     Socket contact = ss.accept();
-                    System.out.println("Connected to port: " + contact.getLocalPort());
+                    System.out.println("Connected to port: " + contact.getPort());
 
                     new Thread(() -> {
+                        BufferedReader contactInput;
+                        PrintWriter contactOutput;
+
                         try
                         {
-                            BufferedReader contactInput = new BufferedReader(new InputStreamReader(contact.getInputStream()));
-                            PrintWriter contactOutput = new PrintWriter(new OutputStreamWriter(contact.getOutputStream()),true);
+                            contactInput = new BufferedReader(new InputStreamReader(contact.getInputStream()));
+                            contactOutput = new PrintWriter(new OutputStreamWriter(contact.getOutputStream()),true);
 
-                            for(;;)
-                            { 
+                        } 
+                        catch(Exception e)
+                        {
+                            //No connection found
+                            System.out.println("Could not setup IO of contact: " + Integer.toString(contact.getPort()) + " error: " +e);
+                            return;
+                        }
+                        for(;;)
+                        { 
+                            try
+                            {
                                 if(contactInput.ready())
                                 {
-                                    String firstBuffer = contactInput.readLine();
-                                    int firstSpace = firstBuffer.indexOf(" ");
-                                    String command;
-                                    try
-                                    {
-                                        command = firstBuffer.substring(0, firstSpace);
-                                    }
-                                    catch(Exception e)
-                                    {
-                                        command = "Missing command";
-                                    }
+                                    String[] message = contactInput.readLine().split(" ");
+                                    String command = message[0];
 
+
+                                    //For debugging purposes. Probabkly redundant
+                                    // if(command.equals(""))
+                                    // {
+                                    //     command = "Missing command";
+                                    // }
                                     System.out.println("Command is: " + command);
 
                                     //Join command
                                     //This command is only used by DStores to initialize
                                     if(command.equals(Protocol.JOIN_TOKEN)){
-                                        int secondSpace = firstBuffer.indexOf(" ", firstSpace + 1);
-                                        int port = Integer.parseInt(firstBuffer.substring(firstSpace + 1, secondSpace));
+                                        int port = Integer.parseInt(message[1]);
 
                                         //Is this even required?
                                         if(!storages.contains(port))
                                         {
+                                            System.out.println("Adding storage with port: " + Integer.toString(port));
                                             storages.put(port, contact);
                                             connectedStorages++;
                                         }
                                     }
                                     //Client store command
                                     else if(command.equals(Protocol.STORE_TOKEN)){
-                                        int secondSpace = firstBuffer.indexOf(" ", firstSpace + 1);
-                                        int thirdSpace = firstBuffer.indexOf(" ", secondSpace + 1);
-
-                                        String fileName = firstBuffer.substring(firstSpace + 1, secondSpace);
-                                        int fileSize = Integer.parseInt(firstBuffer.substring(secondSpace + 1, thirdSpace));
+                                        String fileName = message[1];
+                                        int fileSize = Integer.parseInt(message[2]);
                                         
                                         //We need to check if file is present
 
+                                        System.out.println("Sending StoreTo command to ports: " + getStoreToPorts());
                                         contactOutput.println(Protocol.STORE_TO_TOKEN + " " + getStoreToPorts());
                                     }
                                     else if(command.equals(Protocol.LIST_TOKEN))
@@ -130,25 +138,24 @@ public class Controller {
                                     }
                                 }
                             }
-                        } 
-                        catch(Exception e)
-                        {
-                            //No connection found
-                            System.out.println("error "+e);
+                            catch(IOException e)
+                            {
+                                System.out.println("Error while reading from IO of contact");
+                            }
                         }
-                    }).start();
-                    contact.close(); 
+                        
+                    }).start(); 
                 }   
                 catch(Exception e)
                 {
                     //No connection found
-                    System.out.println("error "+e);
+                    System.out.println("Could not sonnect the Controller to a contact: "+e);
                 }
             }
         }
         catch(Exception e)
         {
-            System.out.println("error "+e);
+            System.out.println("Could not connect to Controller Server socket: "+e);
             //Error with Server Socket setup
         }
     }
