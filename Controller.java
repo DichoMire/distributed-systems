@@ -128,7 +128,10 @@ public class Controller {
                                         {
                                             fileList += key + " ";
                                         }
-                                        fileList = fileList.substring(0, fileList.length()-1);
+                                        if(fileList.length() > 0)
+                                        {
+                                            fileList = fileList.substring(0, fileList.length()-1);
+                                        }
 
                                         contactOutput.println(Protocol.LIST_TOKEN + " " + fileList);
                                     }
