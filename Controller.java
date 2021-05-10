@@ -27,7 +27,6 @@ public class Controller {
 
     //Concurrent queue for operations added in queue during rebalance
 
-    //int cport, int replication, int timeout, int rebalancePeriod
     public Controller (String [] args)
     {
         this.cport = Integer.parseInt(args[0]);
@@ -103,7 +102,7 @@ public class Controller {
                                         String fileName = message[1];
                                         int fileSize = Integer.parseInt(message[2]);
 
-                                        //Invalid input
+                                        //Check Invalid input
 
                                         if(state == States.INSUFFICIENT_REPLICATION)
                                         {
@@ -131,7 +130,6 @@ public class Controller {
                                                 { 
                                                     isContained = true;
                                                 }
-                                                //We also need to check if we have Rep factor
                                                 else
                                                 {
                                                     //Adding new file to the index
@@ -150,6 +148,69 @@ public class Controller {
                                                 contactOutput.println(Protocol.STORE_TO_TOKEN + " " + storeToPorts);
                                             }
                                         }
+                                    }
+                                    //Storage STORE_ACK command
+                                    else if(command.equals(Protocol.STORE_ACK_TOKEN))
+                                    {
+                                        String fileName = message[1];
+                                        System.out.println("Received STORE_ACK from " + contact.getPort() + " for file " + fileName);
+                                        if(fileIndex.get(fileName).decreaseAcks())
+                                        {
+                                            PrintWriter requestOutput = new PrintWriter(new OutputStreamWriter(fileIndex.get(fileName).getModifier().getOutputStream()),true);
+                                            requestOutput.println(Protocol.STORE_COMPLETE_TOKEN);
+                                            
+                                            fileIndex.get(fileName).setState(States.STORE_COMPLETE);
+                                        }
+                                    }
+                                    //Client load command
+                                    else if(command.equals(Protocol.LOAD_TOKEN))
+                                    {
+                                        String fileName = message[1];
+
+                                        System.out.println("Received LOAD from " + contact.getPort() + " for file " + fileName);
+                                        
+                                        String storagesString = fileIndex.get(fileName).getStorages();
+
+                                        //IMPORTANT CHECKS HERE IF THERE ARE NO STORAGES AT ALL FOR WHATEVER REASON
+
+                                        int firstSpace = storagesString.indexOf(" ", 0);
+                                        int storagePort = Integer.parseInt(storagesString.substring(0, firstSpace));
+
+                                        System.out.println("Sending to client: " + contact.getPort() + " LOAD_FROM command to port: " + storagePort);
+                                        contactOutput.println(Protocol.LOAD_FROM_TOKEN + " " + storagePort + " " + fileIndex.get(fileName).getSize());
+                                    }
+                                    //Client reload command
+                                    else if(command.equals(Protocol.RELOAD_TOKEN))
+                                    {
+                                        String fileName = message[1];
+
+                                        System.out.println("Received RELOAD from " + contact.getPort() + " for file " + fileName);
+                                        
+                                        String storagesString = fileIndex.get(fileName).getStorages();
+                                        int firstSpace = storagesString.indexOf(" ", 0);
+                                        int failedPort = Integer.parseInt(storagesString.substring(0, firstSpace));
+
+                                        System.out.println("Faulty storage port for client " + contact.getPort() + " was port " + failedPort + " for file " + fileName);
+
+                                        //Removing failed storage from the files storage listing
+                                        fileIndex.get(fileName).removeStorage(failedPort);
+
+                                        storagesString = fileIndex.get(fileName).getStorages();
+                                        try
+                                        {
+                                            firstSpace = storagesString.indexOf(" ", 0);
+                                        }
+                                        catch(Exception e)
+                                        {
+                                            //Here we say that there are no more savings of the file.
+                                            System.out.println("Could not locate any storages that contain file " + fileName + " . Forcibly deleting file from index.");
+                                            contactOutput.println(Protocol.ERROR_LOAD_TOKEN);
+                                            System.out.println("Sending to client: " + contact.getPort() + " ERROR_LOAD.");                                            continue;
+                                        }
+                                        
+                                        int storagePort = Integer.parseInt(storagesString.substring(0, firstSpace));
+                                        System.out.println("Sending to client: " + contact.getPort() + " LOAD_FROM command to port: " + storagePort);
+                                        contactOutput.println(Protocol.LOAD_FROM_TOKEN + " " + storagePort + " " + fileIndex.get(fileName).getSize());
                                     }
                                     //Client list command
                                     else if(command.equals(Protocol.LIST_TOKEN))
@@ -180,20 +241,6 @@ public class Controller {
                                             }
     
                                             contactOutput.println(Protocol.LIST_TOKEN + " " + fileList);
-                                        }
-                                    }
-                                    //Storage STORE_ACK command
-                                    else if(command.equals(Protocol.STORE_ACK_TOKEN))
-                                    {
-                                        String fileName = message[1];
-                                        System.out.println("Received STORE_ACK from " + contact.getPort() + " for file " + fileName);
-                                        if(fileIndex.get(fileName).decreaseAcks())
-                                        {
-                                            PrintWriter requestOutput = new PrintWriter(new OutputStreamWriter(fileIndex.get(fileName).getModifier().getOutputStream()),true);
-                                            requestOutput.println(Protocol.STORE_COMPLETE_TOKEN);
-                                            
-                                            fileIndex.get(fileName).setState(States.STORE_COMPLETE);
-                                            //Maybe close contact socket here?
                                         }
                                     }
                                 }

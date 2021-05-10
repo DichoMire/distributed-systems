@@ -84,6 +84,11 @@ public class FileInfo {
         return result;
     }
 
+    public void removeStorage(Integer port)
+    {
+        storages.remove(port);
+    }
+
     public Socket getModifier()
     {
         return lastModifier;

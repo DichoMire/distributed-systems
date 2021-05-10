@@ -14,6 +14,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class Dstore {
     
@@ -22,17 +23,8 @@ public class Dstore {
     private int timeout;
     private String fileFolder;
 
-    // public Dstore (int port, int cport, int timeout, String fileFolder)
-    // {
-    //     this.port = port;
-    //     this.cport = cport;
-    //     this.timeout = timeout;
-    //     this.fileFolder = fileFolder;
-    // }
-
-    //Hashmap with clients?
-
-    private HashMap<String, Integer> fileIndex;
+    //Hashmap with clients
+    private ConcurrentHashMap<String, Integer> fileIndex;
 
     public Dstore (String[] args)
     {
@@ -41,7 +33,7 @@ public class Dstore {
         this.timeout = Integer.parseInt(args[2]);
         this.fileFolder = args[3];
 
-        fileIndex = new HashMap<String, Integer>();
+        fileIndex = new ConcurrentHashMap<String, Integer>();
 
 
 
@@ -98,6 +90,7 @@ public class Dstore {
                                 String[] message = controllerInput.readLine().split(" ");
                                 String command = message[0];
 
+                                //Controller List Command
                                 if(command.equals(Protocol.LIST_TOKEN))
                                 {   
                                     System.out.println("Controller " + controller.getPort() + " sent command LIST .");
@@ -137,11 +130,11 @@ public class Dstore {
                         Socket client = ss.accept();
                         System.out.println("Connection with client: " + client.getPort() + " established.");
                         //Probably not required
-                        if(client.getPort() == cport)
-                        {
-                            System.out.println("Controller attempted to connect as a client!!!");
-                            continue;
-                        }
+                        // if(client.getPort() == cport)
+                        // {
+                        //     System.out.println("Controller attempted to connect as a client!!!");
+                        //     continue;
+                        // }
 
                         //This is the thread that communicates with the client
                         new Thread(() -> {
@@ -157,7 +150,6 @@ public class Dstore {
                                 {
                                     try
                                     {
-                                        // buflen = in.read(buf);
                                         if(clientInput.ready())
                                         {
                                             String[] message = clientInput.readLine().split(" ");
@@ -178,14 +170,6 @@ public class Dstore {
                                                 String currentPath = file.getAbsolutePath();
                                                 file = new File(currentPath + File.separator + fileFolder + File.separator + fileName);
         
-                                                // try
-                                                // {
-                                                //     file.createNewFile();
-                                                // }
-                                                // catch(Exception e)
-                                                // {
-                                                //     System.out.println("error "+e);
-                                                // }
                                                 System.out.println("Starting to receive file of size: " + Integer.toString(fileSize));
 
                                                 byte[] contentBuf = clientInputStream.readNBytes(fileSize);
@@ -205,6 +189,31 @@ public class Dstore {
                                                 client.close();
                                                 System.out.println("Client " + client.getPort() + " request complete. Closing connection.");
                                                 break;
+                                            }
+                                            else if(command.equals(Protocol.LOAD_DATA_TOKEN))
+                                            {
+                                                String fileName = message[1];
+
+                                                System.out.println("Client " + client.getPort() + " sent command LOAD_DATA . FileName: " + fileName);
+                                                
+                                                //Might require synchronization
+                                                if(fileIndex.containsKey(fileName))
+                                                {
+                                                    File file = new File("");
+                                                    String currentPath = file.getAbsolutePath();
+                                                    file = new File(currentPath + File.separator + fileFolder + File.separator + fileName);
+
+                                                    byte[] bytes = Files.readAllBytes(file.toPath());
+
+                                                    System.out.println("Sending to client " + client.getPort() + " the contents of " + fileName);                                                    clientOutputStream.write(bytes);
+                                                    clientOutputStream.flush();
+                                                    client.close();
+                                                }
+                                                else
+                                                {
+                                                    //Simply close connection with client if file is not present.
+                                                    client.close();
+                                                }
                                             }
                                         }
                                     }
