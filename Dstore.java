@@ -1,5 +1,6 @@
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -174,12 +175,10 @@ public class Dstore {
 
                                                 byte[] contentBuf = clientInputStream.readNBytes(fileSize);
                                                 System.out.println("Received file " + fileName + " from client " + client.getPort());
-
-                                                String content = new String(contentBuf);
         
-                                                FileWriter fw = new FileWriter(file);
-                                                fw.write(content);
-                                                fw.close();
+                                                FileOutputStream fo = new FileOutputStream(file);
+                                                fo.write(contentBuf);
+                                                fo.close();
                                                 
                                                 System.out.println("Sending STORE_ACK token to controller " + controller.getPort());
                                                 controllerOutput.println(Protocol.STORE_ACK_TOKEN + " " + fileName);
