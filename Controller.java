@@ -22,6 +22,7 @@ public class Controller {
 
     private ConcurrentHashMap<Integer, StorageInfo> storages = new ConcurrentHashMap<Integer, StorageInfo>();
 
+    private Object fileLock = new Object();
     private ConcurrentHashMap<String, FileInfo> fileIndex = new ConcurrentHashMap<String, FileInfo>();
 
     //Concurrent queue for operations added in queue during rebalance
@@ -99,6 +100,11 @@ public class Controller {
                                     }
                                     //Client store command
                                     else if(command.equals(Protocol.STORE_TOKEN)){
+                                        String fileName = message[1];
+                                        int fileSize = Integer.parseInt(message[2]);
+
+                                        //Invalid input
+
                                         if(state == States.INSUFFICIENT_REPLICATION)
                                         {
                                             System.out.println("Insufficient replication. Command not executed.");
@@ -106,27 +112,40 @@ public class Controller {
                                         }
                                         else 
                                         {
-                                            String fileName = message[1];
-                                            int fileSize = Integer.parseInt(message[2]);
-    
+                                            
+                                            
                                             System.out.println("Client " + contact.getPort() + " sent command STORE . FileName: " + fileName + " FileSize: " + fileSize);
     
                                             //Super detailed message
                                             //System.out.println("Current fileIndex: " + fileIndex.toString() + " attempting to add: " + fileName + " boolean: " + fileIndex.containsKey(fileName));
+                                            
+                                            //Preparation
+                                            boolean isContained = false;
+                                            String storeToPorts = getStoreToPorts();
 
                                             //If the index already contains the file and the file has not already been removed
                                             //We tell the client the error
-                                            if(fileIndex.containsKey(fileName))
-                                            { 
+                                            synchronized(fileLock)
+                                            {
+                                                if(fileIndex.containsKey(fileName))
+                                                { 
+                                                    isContained = true;
+                                                }
+                                                //We also need to check if we have Rep factor
+                                                else
+                                                {
+                                                    //Adding new file to the index
+                                                    fileIndex.put(fileName,new FileInfo(fileSize, replication, storeToPorts, contact));
+                                                }
+                                            }
+
+                                            if(isContained)
+                                            {
                                                 System.out.println("Client " + contact.getPort() + " attempted to add file: " + fileName + " But it already exists.");
                                                 contactOutput.println(Protocol.ERROR_FILE_ALREADY_EXISTS_TOKEN);
                                             }
-                                            //We also need to check if we have Rep factor
                                             else
                                             {
-                                                //Adding new file to the index
-                                                String storeToPorts = getStoreToPorts();
-                                                fileIndex.put(fileName,new FileInfo(fileSize, replication, storeToPorts, contact));
                                                 System.out.println("Sending to client: " + contact.getPort() + " STORE_TO command to ports: " + storeToPorts);
                                                 contactOutput.println(Protocol.STORE_TO_TOKEN + " " + storeToPorts);
                                             }
@@ -167,6 +186,7 @@ public class Controller {
                                     else if(command.equals(Protocol.STORE_ACK_TOKEN))
                                     {
                                         String fileName = message[1];
+                                        System.out.println("Received STORE_ACK from " + contact.getPort() + " for file " + fileName);
                                         if(fileIndex.get(fileName).decreaseAcks())
                                         {
                                             PrintWriter requestOutput = new PrintWriter(new OutputStreamWriter(fileIndex.get(fileName).getModifier().getOutputStream()),true);
