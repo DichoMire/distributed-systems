@@ -17,15 +17,15 @@ public class ClientMain {
 		if (!uploadFolder.exists())
 			throw new RuntimeException("to_store folder does not exist");
 		
-		//testClient(cport, timeout, downloadFolder);
+		testClient(cport, timeout, downloadFolder);
 
-		for (int i = 0; i < 10; i++) {
-			new Thread() {
-				public void run() {
-					testClient(cport, timeout, downloadFolder);
-				}
-			}.start();
-		}
+		// for (int i = 0; i < 10; i++) {
+		// 	new Thread() {
+		// 		public void run() {
+		// 			testClient(cport, timeout, downloadFolder);
+		// 		}
+		// 	}.start();
+		// }
 		
 		//example to launch a number of concurrent clients, each doing the same operations
 		// for (int i = 0; i < 1; i++) {

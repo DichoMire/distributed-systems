@@ -1,5 +1,4 @@
 import java.io.BufferedReader;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
@@ -9,8 +8,14 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Set;
+import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class Controller {
@@ -173,7 +178,10 @@ public class Controller {
                                     else if(command.equals(Protocol.STORE_ACK_TOKEN))
                                     {
                                         String fileName = message[1];
-                                        log("Received STORE_ACK from " + contact.getPort() + " for file " + fileName);
+
+                                        int currentStoragePort = contact.getPort();
+
+                                        log("Received STORE_ACK from " + currentStoragePort + " for file " + fileName);
 
                                         boolean storeComplete = false;
                                         Socket modifier = null;
@@ -186,6 +194,11 @@ public class Controller {
                                                 fileIndex.get(fileName).setState(States.STORE_COMPLETE);
                                                 modifier = fileIndex.get(fileName).getModifier();
                                             }
+                                        }
+
+                                        synchronized(storageLock)
+                                        {
+                                            storages.get(currentStoragePort).increaseFiles();
                                         }
 
                                         if(storeComplete)
@@ -346,7 +359,9 @@ public class Controller {
                                         //REQUIRES CHECK IF FILE EXISTS
                                         String fileName = message[1];
 
-                                        log("Received REMOVE_ACK from " + contact.getPort() + " for file " + fileName);
+                                        int currentStoragePort = contact.getPort();
+
+                                        log("Received REMOVE_ACK from " + currentStoragePort + " for file " + fileName);
 
                                         boolean removeComplete = false;
                                         Socket removeRequester = null;
@@ -359,6 +374,11 @@ public class Controller {
                                                 removeRequester = fileIndex.get(fileName).getModifier();
                                                 fileIndex.remove(fileName);
                                             }
+                                        }
+
+                                        synchronized(storageLock)
+                                        {
+                                            storages.get(currentStoragePort).decreaseFiles();
                                         }
 
                                         if(removeComplete)
@@ -447,22 +467,40 @@ public class Controller {
     {
         String ports = "";
         Set<Integer> keys;
-        HashMap<Integer, Integer> keyToFiles = new HashMap<Integer, Integer>();
+        HashMap<Integer, Integer> portToFileCount = new HashMap<Integer, Integer>();
 
         synchronized(storageLock)
         {
             keys = storages.keySet();
             for(Integer key: keys)
             {
-                
-                ports += Integer.toString(key) + " ";
+                Integer numberOfFiles = storages.get(key).getNumberOfFiles();
+                portToFileCount.put(key, numberOfFiles);
             }
         }
 
-        for(Integer key: keys)
-        {
-            ports += Integer.toString(key) + " ";
-        }
+        //SOLUTION TAKEN FROM https://www.javatpoint.com/how-to-sort-hashmap-by-value
+        LinkedList<Entry<Integer, Integer>> list = new LinkedList<Entry<Integer, Integer>>(portToFileCount.entrySet());  
+
+        Collections.sort(list, new Comparator<Entry<Integer, Integer>>()   
+		{  
+			public int compare(Entry<Integer, Integer> o1, Entry<Integer, Integer> o2)   
+			{  
+				return o1.getValue().compareTo(o2.getValue());
+			}  
+		}); 
+
+        int counter = 0;
+        for (Entry<Integer, Integer> entry : list)   
+		{  
+            counter++;
+            ports += Integer.toString(entry.getKey()) + " ";
+            if(counter == replication)
+            {
+                break;
+            }
+		}
+
         ports = ports.substring(0, ports.length()-1);
         return ports;
     }
