@@ -203,7 +203,7 @@ public class Controller {
                                         boolean isContained = false;
                                         synchronized(fileLock)
                                         {
-                                            if(fileIndex.contains(fileName))
+                                            if(fileIndex.containsKey(fileName))
                                             {
                                                 isContained = true;
                                             }
@@ -293,7 +293,7 @@ public class Controller {
                                         boolean isContained = false;
                                         synchronized(fileLock)
                                         {
-                                            if(fileIndex.contains(fileName))
+                                            if(fileIndex.containsKey(fileName))
                                             {
                                                 isContained = true;
                                             }
@@ -368,7 +368,7 @@ public class Controller {
                                             contactOutput.println(Protocol.ERROR_NOT_ENOUGH_DSTORES_TOKEN);
                                             continue;
                                         }
-                                        
+
                                         log("Client " + contact.getPort() + " sent command LIST .");
 
                                         Set<String> keys;

@@ -119,7 +119,7 @@ public class Dstore {
 
                                     synchronized(fileLock)
                                     {
-                                        if(fileIndex.contains(fileName))
+                                        if(fileIndex.containsKey(fileName))
                                         {
                                             isContained = true;
                                         }
