@@ -24,6 +24,7 @@ public class Dstore {
     private int timeout;
     private String fileFolder;
 
+    private Object fileLock = new Object();
     //Hashmap with clients
     private ConcurrentHashMap<String, Integer> fileIndex;
 
@@ -35,8 +36,6 @@ public class Dstore {
         this.fileFolder = args[3];
 
         fileIndex = new ConcurrentHashMap<String, Integer>();
-
-
 
         mainSequence();
     }
@@ -97,7 +96,12 @@ public class Dstore {
                                     System.out.println("Controller " + controller.getPort() + " sent command LIST .");
 
                                     String fileList = "";
-                                    Set<String> keys = fileIndex.keySet();
+                                    Set<String> keys;
+                                    synchronized(fileLock)
+                                    {
+                                        keys = fileIndex.keySet();
+                                    }
+
                                     for(String key: keys)
                                     {
                                         fileList += key + " ";
@@ -112,7 +116,10 @@ public class Dstore {
                                     String fileName = message[1];
                                     System.out.println("Controller " + controller.getPort() + " sent command REMOVE for file " + fileName);
 
-                                    fileIndex.remove(fileName);
+                                    synchronized(fileLock)
+                                    {
+                                        fileIndex.remove(fileName);
+                                    }
 
                                     File file = new File("");
                                     String currentPath = file.getAbsolutePath();
@@ -200,7 +207,10 @@ public class Dstore {
                                                 System.out.println("Sending STORE_ACK token to controller " + controller.getPort());
                                                 controllerOutput.println(Protocol.STORE_ACK_TOKEN + " " + fileName);
 
-                                                fileIndex.put(fileName, fileSize);
+                                                synchronized(fileLock)
+                                                {
+                                                    fileIndex.put(fileName, fileSize);
+                                                }
 
                                                 client.close();
                                                 System.out.println("Client " + client.getPort() + " request complete. Closing connection.");
@@ -212,8 +222,18 @@ public class Dstore {
 
                                                 System.out.println("Client " + client.getPort() + " sent command LOAD_DATA . FileName: " + fileName);
                                                 
+                                                boolean isContained = false;
+
+                                                synchronized(fileLock)
+                                                {
+                                                    if(fileIndex.containsKey(fileName))
+                                                    {
+                                                        isContained = true;
+                                                    }
+                                                }
+
                                                 //Might require synchronization
-                                                if(fileIndex.containsKey(fileName))
+                                                if(isContained)
                                                 {
                                                     File file = new File("");
                                                     String currentPath = file.getAbsolutePath();

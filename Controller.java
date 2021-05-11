@@ -2,10 +2,12 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.ArrayList;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -20,6 +22,7 @@ public class Controller {
 
     private int connectedStorages;
 
+    private Object storageLock = new Object();
     private ConcurrentHashMap<Integer, StorageInfo> storages = new ConcurrentHashMap<Integer, StorageInfo>();
 
     private Object fileLock = new Object();
@@ -89,11 +92,20 @@ public class Controller {
 
                                         System.out.println("Storage " + port + " sent command JOIN from port " + contact.getPort());
 
+                                        boolean storageAlreadyContained = true;
                                         //Is this even required?
-                                        if(!storages.containsKey(port))
+                                        synchronized(storageLock)
+                                        {
+                                            if(!storages.containsKey(port))
+                                            {
+                                                storageAlreadyContained = false;
+                                                storages.put(port, new StorageInfo(contact, contactInput, contactOutput));
+                                            }
+                                        }
+
+                                        if(!storageAlreadyContained)
                                         {
                                             System.out.println("Adding storage with port: " + Integer.toString(port));
-                                            storages.put(port, new StorageInfo(contact, contactInput, contactOutput));
                                             updateStorageCount();
                                         }
                                     }
@@ -154,12 +166,25 @@ public class Controller {
                                     {
                                         String fileName = message[1];
                                         System.out.println("Received STORE_ACK from " + contact.getPort() + " for file " + fileName);
-                                        if(fileIndex.get(fileName).decreaseAcks())
+
+                                        boolean storeComplete = false;
+                                        Socket modifier = null;
+
+                                        synchronized(fileLock)
                                         {
-                                            PrintWriter requestOutput = new PrintWriter(new OutputStreamWriter(fileIndex.get(fileName).getModifier().getOutputStream()),true);
+                                            if(fileIndex.get(fileName).decreaseAcks())
+                                            {
+                                                storeComplete = true;
+                                                fileIndex.get(fileName).setState(States.STORE_COMPLETE);
+                                                modifier = fileIndex.get(fileName).getModifier();
+                                            }
+                                        }
+
+                                        if(storeComplete)
+                                        {
+                                            OutputStream modifierClientOS = modifier.getOutputStream();
+                                            PrintWriter requestOutput = new PrintWriter(new OutputStreamWriter(modifierClientOS),true);
                                             requestOutput.println(Protocol.STORE_COMPLETE_TOKEN);
-                                            
-                                            fileIndex.get(fileName).setState(States.STORE_COMPLETE);
                                         }
                                     }
                                     //Client load command
@@ -169,15 +194,21 @@ public class Controller {
 
                                         System.out.println("Received LOAD from " + contact.getPort() + " for file " + fileName);
                                         
-                                        String storagesString = fileIndex.get(fileName).getStorages();
+                                        Integer storagePort;
+                                        int fileSize;
+
+                                        synchronized(fileLock)
+                                        {
+                                            fileIndex.get(fileName).initializeAvailableStorages();
+                                            storagePort = fileIndex.get(fileName).getSingleAvailable();
+                                            fileSize = fileIndex.get(fileName).getSize();
+                                        }
 
                                         //IMPORTANT CHECKS HERE IF THERE ARE NO STORAGES AT ALL FOR WHATEVER REASON
 
-                                        int firstSpace = storagesString.indexOf(" ", 0);
-                                        int storagePort = Integer.parseInt(storagesString.substring(0, firstSpace));
-
                                         System.out.println("Sending to client: " + contact.getPort() + " LOAD_FROM command to port: " + storagePort);
-                                        contactOutput.println(Protocol.LOAD_FROM_TOKEN + " " + storagePort + " " + fileIndex.get(fileName).getSize());
+
+                                        contactOutput.println(Protocol.LOAD_FROM_TOKEN + " " + storagePort + " " + fileSize);
                                     }
                                     //Client reload command
                                     else if(command.equals(Protocol.RELOAD_TOKEN))
@@ -186,31 +217,37 @@ public class Controller {
 
                                         System.out.println("Received RELOAD from " + contact.getPort() + " for file " + fileName);
                                         
-                                        String storagesString = fileIndex.get(fileName).getStorages();
-                                        int firstSpace = storagesString.indexOf(" ", 0);
-                                        int failedPort = Integer.parseInt(storagesString.substring(0, firstSpace));
+                                        Integer storagePort;
 
-                                        System.out.println("Faulty storage port for client " + contact.getPort() + " was port " + failedPort + " for file " + fileName);
+                                        int fileSize;
+
+                                        synchronized(fileLock)
+                                        {
+                                            fileIndex.get(fileName).removeFirstAvailable();
+                                            storagePort = fileIndex.get(fileName).getSingleAvailable();
+                                            fileSize = fileIndex.get(fileName).getSize();
+                                        }
 
                                         //Removing failed storage from the files storage listing
-                                        fileIndex.get(fileName).removeStorage(failedPort);
+                                        //fileIndex.get(fileName).removeStorage(failedPort);
 
-                                        storagesString = fileIndex.get(fileName).getStorages();
-                                        try
+
+                                        //Here we say that there are no more savings of the file.
+                                        if(storagePort.equals(null))
                                         {
-                                            firstSpace = storagesString.indexOf(" ", 0);
-                                        }
-                                        catch(Exception e)
-                                        {
-                                            //Here we say that there are no more savings of the file.
                                             System.out.println("Could not locate any storages that contain file " + fileName + " . Forcibly deleting file from index.");
                                             contactOutput.println(Protocol.ERROR_LOAD_TOKEN);
-                                            System.out.println("Sending to client: " + contact.getPort() + " ERROR_LOAD.");                                            continue;
+                                            System.out.println("Sending to client: " + contact.getPort() + " ERROR_LOAD.");
+                                            
+                                            //POTENTIALLY WANT TO CHECK IF THERE IS ISSUE WITH PORTS
+                                            //OR DO A REBALANCE OPERATION!!!
+                                            //////////////////////////////////////////////////////////
+                                            
+                                            continue;
                                         }
                                         
-                                        int storagePort = Integer.parseInt(storagesString.substring(0, firstSpace));
                                         System.out.println("Sending to client: " + contact.getPort() + " LOAD_FROM command to port: " + storagePort);
-                                        contactOutput.println(Protocol.LOAD_FROM_TOKEN + " " + storagePort + " " + fileIndex.get(fileName).getSize());
+                                        contactOutput.println(Protocol.LOAD_FROM_TOKEN + " " + storagePort + " " + fileSize);
                                     }
                                     else if(command.equals(Protocol.REMOVE_TOKEN))
                                     {
@@ -221,15 +258,29 @@ public class Controller {
 
                                         System.out.println("Received REMOVE from " + contact.getPort() + " for file " + fileName);
 
-                                        fileIndex.get(fileName).setStateRemove(contact);
-
-                                        String[] storagesString = fileIndex.get(fileName).getStorages().split(" ");
-
-                                        for(String str : storagesString)
+                                        String unsplit;
+                                        ArrayList<Integer> storagePorts;
+                                        ArrayList<Socket> storageSockets = new ArrayList<Socket>();
+                                        
+                                        synchronized(fileLock)
                                         {
-                                            int portNum = Integer.parseInt(str);
+                                            fileIndex.get(fileName).setStateRemove(contact);
+                                            storagePorts = fileIndex.get(fileName).getStorages();
+                                        }
+
+                                        synchronized(storageLock)
+                                        {
+                                            for(Integer port: storagePorts)
+                                            {
+                                                storageSockets.add(storages.get(port).getSocket());
+                                            }
+                                        }
+
+                                        for(Socket socket: storageSockets)
+                                        {
+                                            int portNum = socket.getPort();
                                             System.out.println("Sending to storage: " + portNum + " REMOVE command for file " + fileName);
-                                            storages.get(portNum).getOutput().println(Protocol.REMOVE_TOKEN + " " + fileName);
+                                            new PrintWriter(new OutputStreamWriter(socket.getOutputStream()),true).println(Protocol.REMOVE_TOKEN + " " + fileName);
                                         }
                                     }
                                     else if(command.equals(Protocol.REMOVE_ACK_TOKEN))
@@ -239,13 +290,24 @@ public class Controller {
 
                                         System.out.println("Received REMOVE_ACK from " + contact.getPort() + " for file " + fileName);
 
-                                        if(fileIndex.get(fileName).decreaseAcks())
+                                        boolean removeComplete = false;
+                                        Socket removeRequester = null;
+
+                                        synchronized(fileLock)
                                         {
-                                            Socket removeRequester = fileIndex.get(fileName).getModifier();
+                                            if(fileIndex.get(fileName).decreaseAcks())
+                                            {
+                                                removeComplete = true;
+                                                removeRequester = fileIndex.get(fileName).getModifier();
+                                                fileIndex.remove(fileName);
+                                            }
+                                        }
+
+                                        if(removeComplete)
+                                        {
                                             PrintWriter requestOutput = new PrintWriter(new OutputStreamWriter(removeRequester.getOutputStream()),true);
                                             System.out.println("Sending to client: " + removeRequester.getPort() + " REMOVE_COMPLETE command");
                                             requestOutput.println(Protocol.REMOVE_COMPLETE_TOKEN);
-                                            fileIndex.remove(fileName);
                                         }
                                     }
                                     //Client list command
@@ -260,17 +322,21 @@ public class Controller {
                                         {
                                             System.out.println("Client " + contact.getPort() + " sent command LIST .");
 
-                                            Set<String> keys = fileIndex.keySet();
-    
+                                            Set<String> keys;
                                             String fileList = "";
-    
-                                            for(String key: keys)
+
+                                            synchronized(fileLock)
                                             {
-                                                if(fileIndex.get(key).getState() == States.STORE_COMPLETE)
+                                                keys = fileIndex.keySet();
+                                                for(String key: keys)
                                                 {
-                                                    fileList += key + " ";
+                                                    if(fileIndex.get(key).getState() == States.STORE_COMPLETE)
+                                                    {
+                                                        fileList += key + " ";
+                                                    }
                                                 }
                                             }
+
                                             if(fileList.length() > 0)
                                             {
                                                 fileList = fileList.substring(0, fileList.length()-1);
@@ -305,7 +371,10 @@ public class Controller {
 
     private void updateStorageCount()
     {
-        connectedStorages = storages.size();
+        synchronized(storageLock)
+        {
+            connectedStorages = storages.size();
+        }
 
         if(connectedStorages >= replication)
         {
@@ -320,7 +389,13 @@ public class Controller {
     private String getStoreToPorts()
     {
         String ports = "";
-        Set<Integer> keys = storages.keySet();
+        Set<Integer> keys;
+
+        synchronized(storageLock)
+        {
+            keys = storages.keySet();
+        }
+        
         for(Integer key: keys)
         {
             ports += Integer.toString(key) + " ";

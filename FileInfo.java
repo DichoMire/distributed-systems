@@ -11,6 +11,8 @@ public class FileInfo {
 
     private ArrayList<Integer> storages;
 
+    private ArrayList<Integer> availableStorages;
+
     private int fileSize;
 
     private int replicationFactor;
@@ -51,6 +53,13 @@ public class FileInfo {
         return false;
     }
 
+    //Creates a new Array list that copies storages
+    //This stores available storages from which to attempt LOADS or RELOADS
+    public void initializeAvailableStorages()
+    {
+        availableStorages = new ArrayList<Integer>(storages);
+    }
+
     public void setState(int state)
     {
         this.state = state;
@@ -87,18 +96,19 @@ public class FileInfo {
         }
     }
 
-    public String getStorages()
+    public ArrayList<Integer> getStorages()
     {
-        String result = "";
-        for(Integer stor: storages)
-        {
-            result += Integer.toString(stor) + " ";
-        }
-        if(result.length() > 0)
-        {
-            result.substring(0, result.length() - 1);
-        }
-        return result;
+        return new ArrayList<Integer>(storages);
+    }
+
+    public Integer getSingleAvailable()
+    {
+        return availableStorages.get(0);
+    }
+
+    public void removeFirstAvailable()
+    {
+        availableStorages.remove(0);
     }
 
     public void removeStorage(Integer port)
