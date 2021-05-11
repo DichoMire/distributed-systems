@@ -7,6 +7,7 @@ import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -38,7 +39,7 @@ public class Controller {
         this.rebalancePeriod = Integer.parseInt(args[3]);
         updateStorageCount();
 
-        System.out.println("Controller initialized");
+        log("Controller initialized");
         mainSequence();
     }
 
@@ -57,9 +58,9 @@ public class Controller {
                 try
                 {
                     //Awaits connection
-                    System.out.println("Awaiting connection with client or Dstore.");
+                    log("Awaiting connection with client or Dstore.");
                     Socket contact = ss.accept();
-                    System.out.println("Connection to port: " + contact.getPort() + " established.");
+                    log("Connection to port: " + contact.getPort() + " established.");
 
                     new Thread(() -> {
                         BufferedReader contactInput;
@@ -73,7 +74,7 @@ public class Controller {
                         catch(Exception e)
                         {
                             //No connection found
-                            System.out.println("Could not setup IO of contact: " + contact.getPort() + " error: " +e);
+                            log("Could not setup IO of contact: " + contact.getPort() + " error: " +e);
                             return;
                         }
                         for(;;)
@@ -90,7 +91,7 @@ public class Controller {
                                     if(command.equals(Protocol.JOIN_TOKEN)){
                                         int port = Integer.parseInt(message[1]);
 
-                                        System.out.println("Storage " + port + " sent command JOIN from port " + contact.getPort());
+                                        log("Storage " + port + " sent command JOIN from port " + contact.getPort());
 
                                         boolean storageAlreadyContained = true;
                                         //Is this even required?
@@ -105,7 +106,7 @@ public class Controller {
 
                                         if(!storageAlreadyContained)
                                         {
-                                            System.out.println("Adding storage with port: " + Integer.toString(port));
+                                            log("Adding storage with port: " + Integer.toString(port));
                                             updateStorageCount();
                                         }
                                     }
@@ -118,17 +119,17 @@ public class Controller {
 
                                         if(state == States.INSUFFICIENT_REPLICATION)
                                         {
-                                            System.out.println("Insufficient replication. Command not executed.");
+                                            log("Insufficient replication. Command not executed.");
                                             contactOutput.println(Protocol.ERROR_NOT_ENOUGH_DSTORES_TOKEN);
                                         }
                                         else 
                                         {
                                             
                                             
-                                            System.out.println("Client " + contact.getPort() + " sent command STORE . FileName: " + fileName + " FileSize: " + fileSize);
+                                            log("Client " + contact.getPort() + " sent command STORE . FileName: " + fileName + " FileSize: " + fileSize);
     
                                             //Super detailed message
-                                            //System.out.println("Current fileIndex: " + fileIndex.toString() + " attempting to add: " + fileName + " boolean: " + fileIndex.containsKey(fileName));
+                                            //log("Current fileIndex: " + fileIndex.toString() + " attempting to add: " + fileName + " boolean: " + fileIndex.containsKey(fileName));
                                             
                                             //Preparation
                                             boolean isContained = false;
@@ -151,12 +152,12 @@ public class Controller {
 
                                             if(isContained)
                                             {
-                                                System.out.println("Client " + contact.getPort() + " attempted to add file: " + fileName + " But it already exists.");
+                                                log("Client " + contact.getPort() + " attempted to add file: " + fileName + " But it already exists.");
                                                 contactOutput.println(Protocol.ERROR_FILE_ALREADY_EXISTS_TOKEN);
                                             }
                                             else
                                             {
-                                                System.out.println("Sending to client: " + contact.getPort() + " STORE_TO command to ports: " + storeToPorts);
+                                                log("Sending to client: " + contact.getPort() + " STORE_TO command to ports: " + storeToPorts);
                                                 contactOutput.println(Protocol.STORE_TO_TOKEN + " " + storeToPorts);
                                             }
                                         }
@@ -165,7 +166,7 @@ public class Controller {
                                     else if(command.equals(Protocol.STORE_ACK_TOKEN))
                                     {
                                         String fileName = message[1];
-                                        System.out.println("Received STORE_ACK from " + contact.getPort() + " for file " + fileName);
+                                        log("Received STORE_ACK from " + contact.getPort() + " for file " + fileName);
 
                                         boolean storeComplete = false;
                                         Socket modifier = null;
@@ -192,7 +193,7 @@ public class Controller {
                                     {
                                         String fileName = message[1];
 
-                                        System.out.println("Received LOAD from " + contact.getPort() + " for file " + fileName);
+                                        log("Received LOAD from " + contact.getPort() + " for file " + fileName);
                                         
                                         Integer storagePort;
                                         int fileSize;
@@ -206,7 +207,7 @@ public class Controller {
 
                                         //IMPORTANT CHECKS HERE IF THERE ARE NO STORAGES AT ALL FOR WHATEVER REASON
 
-                                        System.out.println("Sending to client: " + contact.getPort() + " LOAD_FROM command to port: " + storagePort);
+                                        log("Sending to client: " + contact.getPort() + " LOAD_FROM command to port: " + storagePort);
 
                                         contactOutput.println(Protocol.LOAD_FROM_TOKEN + " " + storagePort + " " + fileSize);
                                     }
@@ -215,7 +216,7 @@ public class Controller {
                                     {
                                         String fileName = message[1];
 
-                                        System.out.println("Received RELOAD from " + contact.getPort() + " for file " + fileName);
+                                        log("Received RELOAD from " + contact.getPort() + " for file " + fileName);
                                         
                                         Integer storagePort;
 
@@ -235,9 +236,9 @@ public class Controller {
                                         //Here we say that there are no more savings of the file.
                                         if(storagePort.equals(null))
                                         {
-                                            System.out.println("Could not locate any storages that contain file " + fileName + " . Forcibly deleting file from index.");
+                                            log("Could not locate any storages that contain file " + fileName + " . Forcibly deleting file from index.");
                                             contactOutput.println(Protocol.ERROR_LOAD_TOKEN);
-                                            System.out.println("Sending to client: " + contact.getPort() + " ERROR_LOAD.");
+                                            log("Sending to client: " + contact.getPort() + " ERROR_LOAD.");
                                             
                                             //POTENTIALLY WANT TO CHECK IF THERE IS ISSUE WITH PORTS
                                             //OR DO A REBALANCE OPERATION!!!
@@ -246,7 +247,7 @@ public class Controller {
                                             continue;
                                         }
                                         
-                                        System.out.println("Sending to client: " + contact.getPort() + " LOAD_FROM command to port: " + storagePort);
+                                        log("Sending to client: " + contact.getPort() + " LOAD_FROM command to port: " + storagePort);
                                         contactOutput.println(Protocol.LOAD_FROM_TOKEN + " " + storagePort + " " + fileSize);
                                     }
                                     else if(command.equals(Protocol.REMOVE_TOKEN))
@@ -256,7 +257,7 @@ public class Controller {
                                         //REQUIRES CHECK IF FILE EXISTS
                                         //if(fileIndex.contains(fileName))
 
-                                        System.out.println("Received REMOVE from " + contact.getPort() + " for file " + fileName);
+                                        log("Received REMOVE from " + contact.getPort() + " for file " + fileName);
 
                                         String unsplit;
                                         ArrayList<Integer> storagePorts;
@@ -279,7 +280,7 @@ public class Controller {
                                         for(Socket socket: storageSockets)
                                         {
                                             int portNum = socket.getPort();
-                                            System.out.println("Sending to storage: " + portNum + " REMOVE command for file " + fileName);
+                                            log("Sending to storage: " + portNum + " REMOVE command for file " + fileName);
                                             new PrintWriter(new OutputStreamWriter(socket.getOutputStream()),true).println(Protocol.REMOVE_TOKEN + " " + fileName);
                                         }
                                     }
@@ -288,7 +289,7 @@ public class Controller {
                                         //REQUIRES CHECK IF FILE EXISTS
                                         String fileName = message[1];
 
-                                        System.out.println("Received REMOVE_ACK from " + contact.getPort() + " for file " + fileName);
+                                        log("Received REMOVE_ACK from " + contact.getPort() + " for file " + fileName);
 
                                         boolean removeComplete = false;
                                         Socket removeRequester = null;
@@ -306,7 +307,7 @@ public class Controller {
                                         if(removeComplete)
                                         {
                                             PrintWriter requestOutput = new PrintWriter(new OutputStreamWriter(removeRequester.getOutputStream()),true);
-                                            System.out.println("Sending to client: " + removeRequester.getPort() + " REMOVE_COMPLETE command");
+                                            log("Sending to client: " + removeRequester.getPort() + " REMOVE_COMPLETE command");
                                             requestOutput.println(Protocol.REMOVE_COMPLETE_TOKEN);
                                         }
                                     }
@@ -315,12 +316,12 @@ public class Controller {
                                     {
                                         if(state == States.INSUFFICIENT_REPLICATION)
                                         {
-                                            System.out.println("Insufficient replication. Command not executed.");
+                                            log("Insufficient replication. Command not executed.");
                                             contactOutput.println(Protocol.ERROR_NOT_ENOUGH_DSTORES_TOKEN);
                                         }
                                         else 
                                         {
-                                            System.out.println("Client " + contact.getPort() + " sent command LIST .");
+                                            log("Client " + contact.getPort() + " sent command LIST .");
 
                                             Set<String> keys;
                                             String fileList = "";
@@ -349,7 +350,7 @@ public class Controller {
                             }
                             catch(IOException e)
                             {
-                                System.out.println("Error while reading from IO of contact");
+                                log("Error while reading from IO of contact");
                             }
                         }
                         
@@ -358,13 +359,13 @@ public class Controller {
                 catch(Exception e)
                 {
                     //No connection found
-                    System.out.println("Could not sonnect the Controller to a contact: "+e);
+                    log("Could not sonnect the Controller to a contact: "+e);
                 }
             }
         }
         catch(Exception e)
         {
-            System.out.println("Could not connect to Controller Server socket: "+e);
+            log("Could not connect to Controller Server socket: "+e);
             //Error with Server Socket setup
         }
     }
@@ -395,12 +396,18 @@ public class Controller {
         {
             keys = storages.keySet();
         }
-        
+
         for(Integer key: keys)
         {
             ports += Integer.toString(key) + " ";
         }
         ports = ports.substring(0, ports.length()-1);
         return ports;
+    }
+
+    private void log(String message)
+    {
+        Timestamp timestamp = new Timestamp(System.currentTimeMillis());
+        System.out.println(timestamp + " " + message);
     }
 }

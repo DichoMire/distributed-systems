@@ -19,7 +19,7 @@ public class ClientMain {
 		
 		//testClient(cport, timeout, downloadFolder);
 
-		for (int i = 0; i < 4; i++) {
+		for (int i = 0; i < 10; i++) {
 			new Thread() {
 				public void run() {
 					testClient(cport, timeout, downloadFolder);

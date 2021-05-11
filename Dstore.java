@@ -13,7 +13,7 @@ import java.net.Socket;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.HashMap;
+import java.sql.Timestamp;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -67,17 +67,17 @@ public class Dstore {
                     {
                         Files.createDirectory(folderPath);
                     }
-                    System.out.println("Cleared FileFolder");
+                    log("Cleared FileFolder");
                     
                     //Deletes previous entry and creates a new storage directory
                     try
                     {   
                         controllerOutput.println(Protocol.JOIN_TOKEN + " " + port);
-                        System.out.println("Sent JOIN request to Controller.");
+                        log("Sent JOIN request to Controller.");
                     }
                     catch(Exception e)
                     {
-                        System.out.println("Could not write to controller "+e);
+                        log("Could not write to controller "+e);
                         return;
                     }
 
@@ -93,7 +93,7 @@ public class Dstore {
                                 //Controller List Command
                                 if(command.equals(Protocol.LIST_TOKEN))
                                 {   
-                                    System.out.println("Controller " + controller.getPort() + " sent command LIST .");
+                                    log("Controller " + controller.getPort() + " sent command LIST .");
 
                                     String fileList = "";
                                     Set<String> keys;
@@ -114,7 +114,7 @@ public class Dstore {
                                 else if(command.equals(Protocol.REMOVE_TOKEN))
                                 {   
                                     String fileName = message[1];
-                                    System.out.println("Controller " + controller.getPort() + " sent command REMOVE for file " + fileName);
+                                    log("Controller " + controller.getPort() + " sent command REMOVE for file " + fileName);
 
                                     synchronized(fileLock)
                                     {
@@ -126,7 +126,7 @@ public class Dstore {
                                     file = new File(currentPath + File.separator + fileFolder + File.separator + fileName);
                                     file.delete();
 
-                                    System.out.println("File " + fileName + " successfully removed.");
+                                    log("File " + fileName + " successfully removed.");
 
                                     controllerOutput.println(Protocol.REMOVE_ACK_TOKEN + " " + fileName);
                                 }
@@ -134,7 +134,7 @@ public class Dstore {
                         }
                         catch(Exception e)
                         {
-                            System.out.println("Could not read from controller"+e);
+                            log("Could not read from controller"+e);
                         }
                     }
 
@@ -151,13 +151,13 @@ public class Dstore {
                 {
                     try
                     {
-                        System.out.println("Awaiting connecting with client.");
+                        log("Awaiting connecting with client.");
                         Socket client = ss.accept();
-                        System.out.println("Connection with client: " + client.getPort() + " established.");
+                        log("Connection with client: " + client.getPort() + " established.");
                         //Probably not required
                         // if(client.getPort() == cport)
                         // {
-                        //     System.out.println("Controller attempted to connect as a client!!!");
+                        //     log("Controller attempted to connect as a client!!!");
                         //     continue;
                         // }
 
@@ -185,26 +185,26 @@ public class Dstore {
                                                 String fileName = message[1];
                                                 int fileSize = Integer.parseInt(message[2]);
 
-                                                System.out.println("Client " + client.getPort() + " sent command STORE . FileName: " + fileName + " FileSize: " + fileSize);
+                                                log("Client " + client.getPort() + " sent command STORE . FileName: " + fileName + " FileSize: " + fileSize);
                                                 
                                                 clientOutput.println(Protocol.ACK_TOKEN);
 
-                                                System.out.println("Sent ACK to client " + client.getPort() + " for file: " + fileName);
+                                                log("Sent ACK to client " + client.getPort() + " for file: " + fileName);
 
                                                 File file = new File("");
                                                 String currentPath = file.getAbsolutePath();
                                                 file = new File(currentPath + File.separator + fileFolder + File.separator + fileName);
         
-                                                System.out.println("Starting to receive file of size: " + Integer.toString(fileSize));
+                                                log("Starting to receive file of size: " + Integer.toString(fileSize));
 
                                                 byte[] contentBuf = clientInputStream.readNBytes(fileSize);
-                                                System.out.println("Received file " + fileName + " from client " + client.getPort());
+                                                log("Received file " + fileName + " from client " + client.getPort());
         
                                                 FileOutputStream fo = new FileOutputStream(file);
                                                 fo.write(contentBuf);
                                                 fo.close();
                                                 
-                                                System.out.println("Sending STORE_ACK token to controller " + controller.getPort());
+                                                log("Sending STORE_ACK token to controller " + controller.getPort());
                                                 controllerOutput.println(Protocol.STORE_ACK_TOKEN + " " + fileName);
 
                                                 synchronized(fileLock)
@@ -213,14 +213,14 @@ public class Dstore {
                                                 }
 
                                                 client.close();
-                                                System.out.println("Client " + client.getPort() + " request complete. Closing connection.");
+                                                log("Client " + client.getPort() + " request complete. Closing connection.");
                                                 break;
                                             }
                                             else if(command.equals(Protocol.LOAD_DATA_TOKEN))
                                             {
                                                 String fileName = message[1];
 
-                                                System.out.println("Client " + client.getPort() + " sent command LOAD_DATA . FileName: " + fileName);
+                                                log("Client " + client.getPort() + " sent command LOAD_DATA . FileName: " + fileName);
                                                 
                                                 boolean isContained = false;
 
@@ -241,7 +241,7 @@ public class Dstore {
 
                                                     byte[] bytes = Files.readAllBytes(file.toPath());
 
-                                                    System.out.println("Sending to client " + client.getPort() + " the contents of " + fileName);                                                    clientOutputStream.write(bytes);
+                                                    log("Sending to client " + client.getPort() + " the contents of " + fileName);                                                    clientOutputStream.write(bytes);
                                                     clientOutputStream.flush();
                                                     client.close();
                                                 }
@@ -255,31 +255,37 @@ public class Dstore {
                                     }
                                     catch(Exception e)
                                     {
-                                        System.out.println("error "+e);
+                                        log("error "+e);
                                     }
                                 }
                             }
                             catch(Exception e)
                             {
-                                System.out.println("error " +e);
+                                log("error " +e);
                             }
                         }).start();
                     }
                     catch(Exception e)
                     {
-                        System.out.println("error "+e);
+                        log("error "+e);
                     }
                 }
             }
             catch(Exception e)
             {
-                System.out.println("error "+e);
+                log("error "+e);
             }
         }
         catch(Exception e)
         {
-            System.out.println("error "+e);
+            log("error "+e);
         }
+    }
+
+    private void log(String message)
+    {
+        Timestamp timestamp = new Timestamp(System.currentTimeMillis());
+        System.out.println(timestamp + " " + message);
     }
 
     public static void main(String[] args)
