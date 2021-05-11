@@ -30,9 +30,11 @@ public class Controller {
     private int connectedStorages;
 
     private Object storageLock = new Object();
+    //Key is the socket port from which you get requests.
     private ConcurrentHashMap<Integer, StorageInfo> storages = new ConcurrentHashMap<Integer, StorageInfo>();
 
     private Object fileLock = new Object();
+    //Key is the name of the file.
     private ConcurrentHashMap<String, FileInfo> fileIndex = new ConcurrentHashMap<String, FileInfo>();
 
     //Concurrent queue for operations added in queue during rebalance
@@ -108,13 +110,14 @@ public class Controller {
                                         log("Storage " + port + " sent command JOIN from port " + contact.getPort());
 
                                         boolean storageAlreadyContained = true;
-                                        //Is this even required?
+
                                         synchronized(storageLock)
                                         {
-                                            if(!storages.containsKey(port))
+                                            //Is this even required?
+                                            if(!storages.containsKey(contact.getPort()))
                                             {
                                                 storageAlreadyContained = false;
-                                                storages.put(port, new StorageInfo(contact, contactInput, contactOutput));
+                                                storages.put(contact.getPort(), new StorageInfo(contact, contactInput, contactOutput, port));
                                             }
                                         }
 
@@ -140,13 +143,47 @@ public class Controller {
                                         }
 
                                         log("Client " + contact.getPort() + " sent command STORE . FileName: " + fileName + " FileSize: " + fileSize);
-    
-                                        //Super detailed message
-                                        //log("Current fileIndex: " + fileIndex.toString() + " attempting to add: " + fileName + " boolean: " + fileIndex.containsKey(fileName));
-                                            
-                                        //Preparation
+                      
                                         boolean isContained = false;
                                         String storeToPorts = getStoreToPorts();
+
+                                        String[] storagePortInts = storeToPorts.split(" ");
+
+                                        //FROM HERE 
+                                        /////////////////////////////////////////////////======================!!!!!!!!!
+                                        ArrayList<Integer> storageContactPorts = new ArrayList<Integer>();
+                                        
+                                        for(String str: storagePortInts)
+                                        {
+                                            storageContactPorts.add(Integer.parseInt(str));
+                                        }
+
+                                        ArrayList<Integer> storageLocalPorts = new ArrayList<Integer>();
+
+                                        synchronized(storageLock)
+                                        {
+                                            for(Integer intPort: storageContactPorts)
+                                            {
+                                                storageLocalPorts.add(storages.get(intPort).getPort());
+                                            }
+                                        }
+
+                                        storeToPorts = "";
+
+                                        for(Integer intPort: storageLocalPorts)
+                                        {
+                                            storeToPorts += Integer.toString(intPort) + " ";
+                                        }
+
+                                        storeToPorts = storeToPorts.substring(0, storeToPorts.length() - 1);
+                                        //TO HERE
+                                        ////////////////////////////////////===========================!!!!!!!!!!
+                                        //Is a fucking temporary fix to the issue:
+                                        //Storages now contain their contact port in the key of the hashmap
+                                        //This aims to fix the problem that if the client is sending a command
+                                        //We have no fucking clue what the actualy socket port of the storages are
+                                        //This is fucking horrible and I'd gouge my eyes
+                                        //Fix if you;ve got time
 
                                         //If the index already contains the file and the file has not already been removed
                                         //We tell the client the error
@@ -159,7 +196,7 @@ public class Controller {
                                             else
                                             {
                                                 //Adding new file to the index
-                                                fileIndex.put(fileName,new FileInfo(fileSize, replication, storeToPorts, contact));
+                                                fileIndex.put(fileName,new FileInfo(fileSize, replication, storeToPorts, storageContactPorts, contact));
                                             }
                                         }
 

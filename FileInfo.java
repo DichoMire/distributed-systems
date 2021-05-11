@@ -11,6 +11,8 @@ public class FileInfo {
 
     private ArrayList<Integer> storages;
 
+    private ArrayList<Integer> storagesContactPorts;
+
     private ArrayList<Integer> availableStorages;
 
     private int fileSize;
@@ -21,12 +23,13 @@ public class FileInfo {
 
     private Socket lastModifier;
 
-    public FileInfo(int fileSize, int replicationFactor, String ports, Socket lastModifier)
+    public FileInfo(int fileSize, int replicationFactor, String ports, ArrayList<Integer> storagesContactPorts, Socket lastModifier)
     {
         this.fileSize = fileSize;
         state = States.STORE_IN_PROGRESS;
         storages = new ArrayList<Integer>();
         setStorages(ports);
+        this.storagesContactPorts = storagesContactPorts;
         this.lastModifier = lastModifier;
         this.replicationFactor = replicationFactor;
         remainingAcks = replicationFactor;
@@ -96,9 +99,23 @@ public class FileInfo {
         }
     }
 
+    // public void setStoragePorts(String input)
+    // {
+    //     String[] list = input.split(" ");
+    //     for(String stor: list)
+    //     {
+    //         storagesContactPorts.add(Integer.parseInt(stor));
+    //     }
+    // }
+
     public ArrayList<Integer> getStorages()
     {
         return new ArrayList<Integer>(storages);
+    }
+
+    public ArrayList<Integer> getStoragesContactPorts()
+    {
+        return new ArrayList<Integer>(storagesContactPorts);
     }
 
     public Integer getSingleAvailable()

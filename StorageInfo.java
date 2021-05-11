@@ -11,12 +11,15 @@ public class StorageInfo {
 
     private int numberOfFiles;
 
-    public StorageInfo(Socket socket, BufferedReader storageInput, PrintWriter storageOutput)
+    int port;
+
+    public StorageInfo(Socket socket, BufferedReader storageInput, PrintWriter storageOutput, int port)
     {
         this.socket = socket;
         this.storageInput = storageInput;
         this.storageOutput = storageOutput;
         numberOfFiles = 0;
+        this.port = port;
     }
 
     public Socket getSocket()
@@ -51,6 +54,6 @@ public class StorageInfo {
 
     public int getPort()
     {
-        return socket.getPort();
+        return port;
     }
 }
