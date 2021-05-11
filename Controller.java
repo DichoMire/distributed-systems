@@ -111,7 +111,8 @@ public class Controller {
                                         }
                                     }
                                     //Client store command
-                                    else if(command.equals(Protocol.STORE_TOKEN)){
+                                    else if(command.equals(Protocol.STORE_TOKEN))
+                                    {
                                         String fileName = message[1];
                                         int fileSize = Integer.parseInt(message[2]);
 
@@ -121,45 +122,42 @@ public class Controller {
                                         {
                                             log("Insufficient replication. Command not executed.");
                                             contactOutput.println(Protocol.ERROR_NOT_ENOUGH_DSTORES_TOKEN);
+                                            continue;
                                         }
-                                        else 
-                                        {
-                                            
-                                            
-                                            log("Client " + contact.getPort() + " sent command STORE . FileName: " + fileName + " FileSize: " + fileSize);
+
+                                        log("Client " + contact.getPort() + " sent command STORE . FileName: " + fileName + " FileSize: " + fileSize);
     
-                                            //Super detailed message
-                                            //log("Current fileIndex: " + fileIndex.toString() + " attempting to add: " + fileName + " boolean: " + fileIndex.containsKey(fileName));
+                                        //Super detailed message
+                                        //log("Current fileIndex: " + fileIndex.toString() + " attempting to add: " + fileName + " boolean: " + fileIndex.containsKey(fileName));
                                             
-                                            //Preparation
-                                            boolean isContained = false;
-                                            String storeToPorts = getStoreToPorts();
+                                        //Preparation
+                                        boolean isContained = false;
+                                        String storeToPorts = getStoreToPorts();
 
-                                            //If the index already contains the file and the file has not already been removed
-                                            //We tell the client the error
-                                            synchronized(fileLock)
-                                            {
-                                                if(fileIndex.containsKey(fileName))
-                                                { 
-                                                    isContained = true;
-                                                }
-                                                else
-                                                {
-                                                    //Adding new file to the index
-                                                    fileIndex.put(fileName,new FileInfo(fileSize, replication, storeToPorts, contact));
-                                                }
-                                            }
-
-                                            if(isContained)
-                                            {
-                                                log("Client " + contact.getPort() + " attempted to add file: " + fileName + " But it already exists.");
-                                                contactOutput.println(Protocol.ERROR_FILE_ALREADY_EXISTS_TOKEN);
+                                        //If the index already contains the file and the file has not already been removed
+                                        //We tell the client the error
+                                        synchronized(fileLock)
+                                        {
+                                            if(fileIndex.containsKey(fileName))
+                                            { 
+                                                isContained = true;
                                             }
                                             else
                                             {
-                                                log("Sending to client: " + contact.getPort() + " STORE_TO command to ports: " + storeToPorts);
-                                                contactOutput.println(Protocol.STORE_TO_TOKEN + " " + storeToPorts);
+                                                //Adding new file to the index
+                                                fileIndex.put(fileName,new FileInfo(fileSize, replication, storeToPorts, contact));
                                             }
+                                        }
+
+                                        if(isContained)
+                                        {
+                                            log("Client " + contact.getPort() + " attempted to add file: " + fileName + " But it already exists.");
+                                            contactOutput.println(Protocol.ERROR_FILE_ALREADY_EXISTS_TOKEN);
+                                        }
+                                        else
+                                        {
+                                            log("Sending to client: " + contact.getPort() + " STORE_TO command to ports: " + storeToPorts);
+                                            contactOutput.println(Protocol.STORE_TO_TOKEN + " " + storeToPorts);
                                         }
                                     }
                                     //Storage STORE_ACK command
@@ -191,29 +189,59 @@ public class Controller {
                                     //Client load command
                                     else if(command.equals(Protocol.LOAD_TOKEN))
                                     {
+                                        if(state == States.INSUFFICIENT_REPLICATION)
+                                        {
+                                            log("Insufficient replication. Command not executed.");
+                                            contactOutput.println(Protocol.ERROR_NOT_ENOUGH_DSTORES_TOKEN);
+                                            continue;
+                                        }
+
                                         String fileName = message[1];
 
                                         log("Received LOAD from " + contact.getPort() + " for file " + fileName);
                                         
+                                        boolean isContained = false;
+                                        synchronized(fileLock)
+                                        {
+                                            if(fileIndex.contains(fileName))
+                                            {
+                                                isContained = true;
+                                            }
+                                        }
+
+                                        if(!isContained)
+                                        {
+                                            log("Client " + contact.getPort() + " requested file " + fileName + " " + " but it doesn't exist.");
+                                            contactOutput.println(Protocol.ERROR_FILE_DOES_NOT_EXIST_TOKEN);
+                                            continue;
+                                        }
+
                                         Integer storagePort;
                                         int fileSize;
-
+    
                                         synchronized(fileLock)
                                         {
                                             fileIndex.get(fileName).initializeAvailableStorages();
                                             storagePort = fileIndex.get(fileName).getSingleAvailable();
                                             fileSize = fileIndex.get(fileName).getSize();
                                         }
-
+    
                                         //IMPORTANT CHECKS HERE IF THERE ARE NO STORAGES AT ALL FOR WHATEVER REASON
-
+    
                                         log("Sending to client: " + contact.getPort() + " LOAD_FROM command to port: " + storagePort);
-
+    
                                         contactOutput.println(Protocol.LOAD_FROM_TOKEN + " " + storagePort + " " + fileSize);
                                     }
                                     //Client reload command
                                     else if(command.equals(Protocol.RELOAD_TOKEN))
                                     {
+                                        if(state == States.INSUFFICIENT_REPLICATION)
+                                        {
+                                            log("Insufficient replication. Command not executed.");
+                                            contactOutput.println(Protocol.ERROR_NOT_ENOUGH_DSTORES_TOKEN);
+                                            continue;
+                                        }
+
                                         String fileName = message[1];
 
                                         log("Received RELOAD from " + contact.getPort() + " for file " + fileName);
@@ -250,16 +278,36 @@ public class Controller {
                                         log("Sending to client: " + contact.getPort() + " LOAD_FROM command to port: " + storagePort);
                                         contactOutput.println(Protocol.LOAD_FROM_TOKEN + " " + storagePort + " " + fileSize);
                                     }
+                                    //Client remove command
                                     else if(command.equals(Protocol.REMOVE_TOKEN))
                                     {
+                                        if(state == States.INSUFFICIENT_REPLICATION)
+                                        {
+                                            log("Insufficient replication. Command not executed.");
+                                            contactOutput.println(Protocol.ERROR_NOT_ENOUGH_DSTORES_TOKEN);
+                                            continue;
+                                        }
+
                                         String fileName = message[1];
 
-                                        //REQUIRES CHECK IF FILE EXISTS
-                                        //if(fileIndex.contains(fileName))
+                                        boolean isContained = false;
+                                        synchronized(fileLock)
+                                        {
+                                            if(fileIndex.contains(fileName))
+                                            {
+                                                isContained = true;
+                                            }
+                                        }
+
+                                        if(!isContained)
+                                        {
+                                            log("Client " + contact.getPort() + " requested to remove file " + fileName + " " + " but it doesn't exist.");
+                                            contactOutput.println(Protocol.ERROR_FILE_DOES_NOT_EXIST_TOKEN);
+                                            continue;
+                                        }
 
                                         log("Received REMOVE from " + contact.getPort() + " for file " + fileName);
 
-                                        String unsplit;
                                         ArrayList<Integer> storagePorts;
                                         ArrayList<Socket> storageSockets = new ArrayList<Socket>();
                                         
@@ -318,33 +366,32 @@ public class Controller {
                                         {
                                             log("Insufficient replication. Command not executed.");
                                             contactOutput.println(Protocol.ERROR_NOT_ENOUGH_DSTORES_TOKEN);
+                                            continue;
                                         }
-                                        else 
+                                        
+                                        log("Client " + contact.getPort() + " sent command LIST .");
+
+                                        Set<String> keys;
+                                        String fileList = "";
+
+                                        synchronized(fileLock)
                                         {
-                                            log("Client " + contact.getPort() + " sent command LIST .");
-
-                                            Set<String> keys;
-                                            String fileList = "";
-
-                                            synchronized(fileLock)
+                                            keys = fileIndex.keySet();
+                                            for(String key: keys)
                                             {
-                                                keys = fileIndex.keySet();
-                                                for(String key: keys)
+                                                if(fileIndex.get(key).getState() == States.STORE_COMPLETE)
                                                 {
-                                                    if(fileIndex.get(key).getState() == States.STORE_COMPLETE)
-                                                    {
-                                                        fileList += key + " ";
-                                                    }
+                                                    fileList += key + " ";
                                                 }
                                             }
-
-                                            if(fileList.length() > 0)
-                                            {
-                                                fileList = fileList.substring(0, fileList.length()-1);
-                                            }
-    
-                                            contactOutput.println(Protocol.LIST_TOKEN + " " + fileList);
                                         }
+
+                                        if(fileList.length() > 0)
+                                        {
+                                            fileList = fileList.substring(0, fileList.length()-1);
+                                        }
+    
+                                        contactOutput.println(Protocol.LIST_TOKEN + " " + fileList);
                                     }
                                 }
                             }

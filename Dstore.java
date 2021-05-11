@@ -114,6 +114,24 @@ public class Dstore {
                                 else if(command.equals(Protocol.REMOVE_TOKEN))
                                 {   
                                     String fileName = message[1];
+
+                                    boolean isContained = false;
+
+                                    synchronized(fileLock)
+                                    {
+                                        if(fileIndex.contains(fileName))
+                                        {
+                                            isContained = true;
+                                        }
+                                    }
+
+                                    if(!isContained)
+                                    {
+                                        log("Controller " + controller.getPort() + " requested to remove file " + fileName + " " + " but it doesn't exist.");
+                                        controllerOutput.println(Protocol.ERROR_FILE_DOES_NOT_EXIST_TOKEN + " " + fileName);
+                                        continue;
+                                    }
+
                                     log("Controller " + controller.getPort() + " sent command REMOVE for file " + fileName);
 
                                     synchronized(fileLock)
