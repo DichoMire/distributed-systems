@@ -9,6 +9,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -446,10 +447,16 @@ public class Controller {
     {
         String ports = "";
         Set<Integer> keys;
+        HashMap<Integer, Integer> keyToFiles = new HashMap<Integer, Integer>();
 
         synchronized(storageLock)
         {
             keys = storages.keySet();
+            for(Integer key: keys)
+            {
+                
+                ports += Integer.toString(key) + " ";
+            }
         }
 
         for(Integer key: keys)
