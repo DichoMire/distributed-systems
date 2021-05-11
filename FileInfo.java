@@ -13,18 +13,21 @@ public class FileInfo {
 
     private int fileSize;
 
+    private int replicationFactor;
+
     private int remainingAcks;
 
     private Socket lastModifier;
 
-    public FileInfo(int fileSize, int remainingAcks, String ports, Socket lastModifier)
+    public FileInfo(int fileSize, int replicationFactor, String ports, Socket lastModifier)
     {
         this.fileSize = fileSize;
         state = States.STORE_IN_PROGRESS;
         storages = new ArrayList<Integer>();
         setStorages(ports);
         this.lastModifier = lastModifier;
-        this.remainingAcks = remainingAcks;
+        this.replicationFactor = replicationFactor;
+        remainingAcks = replicationFactor;
     }
 
     //Decreases ACKs required by one.
@@ -35,15 +38,29 @@ public class FileInfo {
         remainingAcks--;
         if(remainingAcks == 0)
         {
-            state = States.STORE_COMPLETE;
+            if(state == States.STORE_IN_PROGRESS)
+            {
+                state = States.STORE_COMPLETE;
+            }
+            else if(state == States.REMOVE_IN_PROGRESS)
+            {
+                state = States.REMOVE_COMPLETE;
+            }
             return true;
         }
-        return true;
+        return false;
     }
 
     public void setState(int state)
     {
         this.state = state;
+    }
+
+    public void setStateRemove(Socket lastModifier)
+    {
+        state = States.REMOVE_IN_PROGRESS;
+        remainingAcks = replicationFactor;
+        this.lastModifier = lastModifier;
     }
 
     public int getState()

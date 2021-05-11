@@ -1,5 +1,6 @@
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -53,10 +54,10 @@ public class Dstore {
             new Thread(() -> {
                 try 
                 {
-                    Path currentPath = Paths.get(System.getProperty("user.dir") + File.separator + fileFolder + File.separator);
-                    if(Files.exists(currentPath))
+                    Path folderPath = Paths.get(System.getProperty("user.dir") + File.separator + fileFolder + File.separator);
+                    if(Files.exists(folderPath))
                     {
-                        File dir = new File(currentPath.toString());
+                        File dir = new File(folderPath.toString());
                         File[] fileList = dir.listFiles();
                         for(File file: fileList)
                         {
@@ -65,7 +66,7 @@ public class Dstore {
                     }
                     else
                     {
-                        Files.createDirectory(currentPath);
+                        Files.createDirectory(folderPath);
                     }
                     System.out.println("Cleared FileFolder");
                     
@@ -104,6 +105,23 @@ public class Dstore {
                                     fileList = fileList.substring(0, fileList.length()-1);
 
                                     controllerOutput.println(Protocol.LIST_TOKEN + " " + fileList);
+                                }
+                                //Controller REMOVE command
+                                else if(command.equals(Protocol.REMOVE_TOKEN))
+                                {   
+                                    String fileName = message[1];
+                                    System.out.println("Controller " + controller.getPort() + " sent command REMOVE for file " + fileName);
+
+                                    fileIndex.remove(fileName);
+
+                                    File file = new File("");
+                                    String currentPath = file.getAbsolutePath();
+                                    file = new File(currentPath + File.separator + fileFolder + File.separator + fileName);
+                                    file.delete();
+
+                                    System.out.println("File " + fileName + " successfully removed.");
+
+                                    controllerOutput.println(Protocol.REMOVE_ACK_TOKEN + " " + fileName);
                                 }
                             }
                         }
@@ -174,12 +192,10 @@ public class Dstore {
 
                                                 byte[] contentBuf = clientInputStream.readNBytes(fileSize);
                                                 System.out.println("Received file " + fileName + " from client " + client.getPort());
-
-                                                String content = new String(contentBuf);
         
-                                                FileWriter fw = new FileWriter(file);
-                                                fw.write(content);
-                                                fw.close();
+                                                FileOutputStream fo = new FileOutputStream(file);
+                                                fo.write(contentBuf);
+                                                fo.close();
                                                 
                                                 System.out.println("Sending STORE_ACK token to controller " + controller.getPort());
                                                 controllerOutput.println(Protocol.STORE_ACK_TOKEN + " " + fileName);
