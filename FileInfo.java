@@ -9,8 +9,10 @@ public class FileInfo {
     //Remove complete
     private int state;
 
+    //Regular ports which Dstores give themselves
     private ArrayList<Integer> storages;
 
+    //The actual socket port from which they communicate with controller
     private ArrayList<Integer> storagesContactPorts;
 
     private ArrayList<Integer> availableStorages;

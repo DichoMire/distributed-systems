@@ -373,7 +373,7 @@ public class Controller {
                                         synchronized(fileLock)
                                         {
                                             fileIndex.get(fileName).setStateRemove(contact);
-                                            storagePorts = fileIndex.get(fileName).getStorages();
+                                            storagePorts = fileIndex.get(fileName).getStoragesContactPorts();
                                         }
 
                                         synchronized(storageLock)
