@@ -212,6 +212,42 @@ public class Controller {
                                         System.out.println("Sending to client: " + contact.getPort() + " LOAD_FROM command to port: " + storagePort);
                                         contactOutput.println(Protocol.LOAD_FROM_TOKEN + " " + storagePort + " " + fileIndex.get(fileName).getSize());
                                     }
+                                    else if(command.equals(Protocol.REMOVE_TOKEN))
+                                    {
+                                        String fileName = message[1];
+
+                                        //REQUIRES CHECK IF FILE EXISTS
+                                        //if(fileIndex.contains(fileName))
+
+                                        System.out.println("Received REMOVE from " + contact.getPort() + " for file " + fileName);
+
+                                        fileIndex.get(fileName).setStateRemove(contact);
+
+                                        String[] storagesString = fileIndex.get(fileName).getStorages().split(" ");
+
+                                        for(String str : storagesString)
+                                        {
+                                            int portNum = Integer.parseInt(str);
+                                            System.out.println("Sending to storage: " + portNum + " REMOVE command for file " + fileName);
+                                            storages.get(portNum).getOutput().println(Protocol.REMOVE_TOKEN + " " + fileName);
+                                        }
+                                    }
+                                    else if(command.equals(Protocol.REMOVE_ACK_TOKEN))
+                                    {
+                                        //REQUIRES CHECK IF FILE EXISTS
+                                        String fileName = message[1];
+
+                                        System.out.println("Received REMOVE_ACK from " + contact.getPort() + " for file " + fileName);
+
+                                        if(fileIndex.get(fileName).decreaseAcks())
+                                        {
+                                            Socket removeRequester = fileIndex.get(fileName).getModifier();
+                                            PrintWriter requestOutput = new PrintWriter(new OutputStreamWriter(removeRequester.getOutputStream()),true);
+                                            System.out.println("Sending to client: " + removeRequester.getPort() + " REMOVE_COMPLETE command");
+                                            requestOutput.println(Protocol.REMOVE_COMPLETE_TOKEN);
+                                            fileIndex.remove(fileName);
+                                        }
+                                    }
                                     //Client list command
                                     else if(command.equals(Protocol.LIST_TOKEN))
                                     {

@@ -17,16 +17,16 @@ public class ClientMain {
 		if (!uploadFolder.exists())
 			throw new RuntimeException("to_store folder does not exist");
 		
-		testClient(cport, timeout, downloadFolder);
+		//testClient(cport, timeout, downloadFolder);
 		
-		// example to launch a number of concurrent clients, each doing the same operations
-		// for (int i = 0; i < 4; i++) {
-		// 	new Thread() {
-		// 		public void run() {
-		// 			test2Client(cport, timeout, downloadFolder, uploadFolder);
-		// 		}
-		// 	}.start();
-		// }
+		//example to launch a number of concurrent clients, each doing the same operations
+		for (int i = 0; i < 1; i++) {
+			new Thread() {
+				public void run() {
+					test2Client(cport, timeout, downloadFolder, uploadFolder);
+				}
+			}.start();
+		}
 	}
 	
 	public static void test2Client(int cport, int timeout, File downloadFolder, File uploadFolder) {
@@ -38,7 +38,7 @@ public class ClientMain {
 			Random random = new Random(System.currentTimeMillis() * System.nanoTime());
 			
 			File fileList[] = uploadFolder.listFiles();
-			for (int i=0; i<fileList.length/2; i++) {
+			for (int i=0; i<fileList.length; i++) {
 				File fileToStore = fileList[random.nextInt(fileList.length)];
 				try {					
 					client.store(fileToStore);
@@ -51,7 +51,7 @@ public class ClientMain {
 			String list[] = null;
 			try { list = list(client); } catch(IOException e) { e.printStackTrace(); }
 			
-			for (int i = 0; i < list.length/4; i++) {
+			for (int i = 0; i < list.length/2; i++) {
 				String fileToRemove = list[random.nextInt(list.length)];
 				try {
 					client.remove(fileToRemove);
