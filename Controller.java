@@ -83,7 +83,15 @@ public class Controller {
                             {
                                 if(contactInput.ready())
                                 {
-                                    String[] message = contactInput.readLine().split(" ");
+                                    String input = contactInput.readLine();
+                                    String[] message = input.split(" ");
+
+                                    if(input.equals(null))
+                                    {
+                                        contactInput.close();
+                                        break;
+                                    }
+
                                     String command = message[0];
 
                                     //Join command

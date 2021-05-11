@@ -87,7 +87,15 @@ public class Dstore {
                         {
                             if(controllerInput.ready())
                             {
-                                String[] message = controllerInput.readLine().split(" ");
+                                String input = controllerInput.readLine();
+                                String[] message = input.split(" ");
+
+                                if(input.equals(null))
+                                {
+                                    controllerInput.close();
+                                    break;
+                                }
+
                                 String command = message[0];
 
                                 //Controller List Command
@@ -195,7 +203,15 @@ public class Dstore {
                                     {
                                         if(clientInput.ready())
                                         {
-                                            String[] message = clientInput.readLine().split(" ");
+                                            String input = clientInput.readLine();
+                                            String[] message = input.split(" ");
+
+                                            if(input.equals(null))
+                                            {
+                                                clientInput.close();
+                                                break;
+                                            }
+
                                             String command = message[0];
         
                                             if(command.equals(Protocol.STORE_TOKEN))
