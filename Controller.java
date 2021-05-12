@@ -96,6 +96,7 @@ public class Controller {
 
                                     if(input.equals(null))
                                     {
+                                        log("Contact " + contact.getPort() + " sent a null message. Closing socket.");
                                         contactInput.close();
                                         break;
                                     }
@@ -262,7 +263,7 @@ public class Controller {
                                         boolean isContained = false;
                                         synchronized(fileLock)
                                         {
-                                            if(fileIndex.containsKey(fileName))
+                                            if(fileIndex.get(fileName).getState() == States.STORE_COMPLETE)
                                             {
                                                 isContained = true;
                                             }
@@ -352,10 +353,14 @@ public class Controller {
                                         boolean isContained = false;
                                         synchronized(fileLock)
                                         {
-                                            if(fileIndex.containsKey(fileName))
+                                            try
                                             {
-                                                isContained = true;
+                                                if(fileIndex.get(fileName).getState() == States.STORE_COMPLETE)
+                                                {
+                                                    isContained = true;
+                                                }
                                             }
+                                            catch(Exception ignored){}
                                         }
 
                                         if(!isContained)
@@ -365,16 +370,15 @@ public class Controller {
                                             continue;
                                         }
 
-                                        log("Received REMOVE from " + contact.getPort() + " for file " + fileName);
-
                                         ArrayList<Integer> storagePorts;
-                                        ArrayList<Socket> storageSockets = new ArrayList<Socket>();
                                         
                                         synchronized(fileLock)
                                         {
                                             fileIndex.get(fileName).setStateRemove(contact);
                                             storagePorts = fileIndex.get(fileName).getStoragesContactPorts();
                                         }
+
+                                        ArrayList<Socket> storageSockets = new ArrayList<Socket>();
 
                                         synchronized(storageLock)
                                         {
@@ -383,6 +387,8 @@ public class Controller {
                                                 storageSockets.add(storages.get(port).getSocket());
                                             }
                                         }
+
+                                        log("Received REMOVE from " + contact.getPort() + " for file " + fileName);
 
                                         for(Socket socket: storageSockets)
                                         {
@@ -457,6 +463,7 @@ public class Controller {
                                             fileList = fileList.substring(0, fileList.length()-1);
                                         }
     
+                                        log("Sending to client: " + contact.getPort() + " LIST command with contents " + fileList);
                                         contactOutput.println(Protocol.LIST_TOKEN + " " + fileList);
                                     }
                                 }
@@ -465,8 +472,7 @@ public class Controller {
                             {
                                 log("Error while reading from IO of contact");
                             }
-                        }
-                        
+                        } 
                     }).start(); 
                 }   
                 catch(Exception e)

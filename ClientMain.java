@@ -28,7 +28,7 @@ public class ClientMain {
 		// }
 		
 		// example to launch a number of concurrent clients, each doing the same operations
-		for (int i = 0; i < 3; i++) {
+		for (int i = 0; i < 10; i++) {
 			new Thread() {
 				public void run() {
 					test2Client(cport, timeout, downloadFolder, uploadFolder);
