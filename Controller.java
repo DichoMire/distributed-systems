@@ -153,6 +153,7 @@ public class Controller {
 
                                     //FROM HERE 
                                     /////////////////////////////////////////////////======================!!!!!!!!!
+                                    //This gets the ports to which the client needs to store
                                     ArrayList<Integer> storageContactPorts = new ArrayList<Integer>();
                                     
                                     for(String str: storagePortInts)
@@ -215,6 +216,8 @@ public class Controller {
                                         String msg = Protocol.STORE_TO_TOKEN + " " + storeToPorts;
                                         contactOutput.println(msg);
                                         ControllerLogger.getInstance().messageSent(contact, msg);
+
+                                        //ADD TIMEOUT
                                     }
                                 }
                                 //Storage STORE_ACK command
