@@ -1,3 +1,4 @@
+import java.io.PrintWriter;
 import java.net.Socket;
 import java.util.ArrayList;
 
@@ -25,7 +26,9 @@ public class FileInfo {
 
     private Socket lastModifier;
 
-    public FileInfo(int fileSize, int replicationFactor, String ports, ArrayList<Integer> storagesContactPorts, Socket lastModifier)
+    private PrintWriter lastModifierPrint;
+
+    public FileInfo(int fileSize, int replicationFactor, String ports, ArrayList<Integer> storagesContactPorts, Socket lastModifier, PrintWriter lastModifierPrint)
     {
         this.fileSize = fileSize;
         state = States.STORE_IN_PROGRESS;
@@ -35,6 +38,7 @@ public class FileInfo {
         this.lastModifier = lastModifier;
         this.replicationFactor = replicationFactor;
         remainingAcks = replicationFactor;
+        this.lastModifierPrint = lastModifierPrint;
     }
 
     //Decreases ACKs required by one.
@@ -70,11 +74,12 @@ public class FileInfo {
         this.state = state;
     }
 
-    public void setStateRemove(Socket lastModifier)
+    public void setStateRemove(Socket lastModifier, PrintWriter lastModifierPrint)
     {
         state = States.REMOVE_IN_PROGRESS;
         remainingAcks = replicationFactor;
         this.lastModifier = lastModifier;
+        this.lastModifierPrint = lastModifierPrint;
     }
 
     public int getState()
@@ -138,6 +143,11 @@ public class FileInfo {
     public Socket getModifier()
     {
         return lastModifier;
+    }
+
+    public PrintWriter getModifierPrint()
+    {
+        return lastModifierPrint;
     }
 
     //No remove file functionality.
