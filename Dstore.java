@@ -2,6 +2,7 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.FileWriter;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
@@ -36,6 +37,13 @@ public class Dstore {
         this.fileFolder = args[3];
 
         fileIndex = new ConcurrentHashMap<String, Integer>();
+
+        try {
+            DstoreLogger.init(Logger.LoggingType.ON_FILE_AND_TERMINAL, port);
+        } catch (IOException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
 
         mainSequence();
     }
@@ -72,7 +80,9 @@ public class Dstore {
                     //Deletes previous entry and creates a new storage directory
                     try
                     {   
-                        controllerOutput.println(Protocol.JOIN_TOKEN + " " + port);
+                        String msg = Protocol.JOIN_TOKEN + " " + port;
+                        controllerOutput.println(msg);
+                        DstoreLogger.getInstance().messageSent(controller, msg);
                         log("Sent JOIN request to Controller.");
                     }
                     catch(Exception e)
@@ -96,6 +106,8 @@ public class Dstore {
                                     break;
                                 }
 
+                                DstoreLogger.getInstance().messageReceived(controller, input);
+
                                 String command = message[0];
 
                                 //Controller List Command
@@ -116,7 +128,9 @@ public class Dstore {
                                     }
                                     fileList = fileList.substring(0, fileList.length()-1);
 
-                                    controllerOutput.println(Protocol.LIST_TOKEN + " " + fileList);
+                                    String msg = Protocol.LIST_TOKEN + " " + fileList;
+                                    controllerOutput.println(msg);
+                                    DstoreLogger.getInstance().messageSent(controller, msg);
                                 }
                                 //Controller REMOVE command
                                 else if(command.equals(Protocol.REMOVE_TOKEN))
@@ -136,7 +150,9 @@ public class Dstore {
                                     if(!isContained)
                                     {
                                         log("Controller " + controller.getPort() + " requested to remove file " + fileName + " " + " but it doesn't exist.");
-                                        controllerOutput.println(Protocol.ERROR_FILE_DOES_NOT_EXIST_TOKEN + " " + fileName);
+                                        String msg = Protocol.ERROR_FILE_DOES_NOT_EXIST_TOKEN + " " + fileName;
+                                        controllerOutput.println(msg);
+                                        DstoreLogger.getInstance().messageSent(controller, msg);
                                         continue;
                                     }
 
@@ -154,7 +170,9 @@ public class Dstore {
 
                                     log("File " + fileName + " successfully removed.");
 
-                                    controllerOutput.println(Protocol.REMOVE_ACK_TOKEN + " " + fileName);
+                                    String msg = Protocol.REMOVE_ACK_TOKEN + " " + fileName;
+                                    controllerOutput.println(msg);
+                                    DstoreLogger.getInstance().messageSent(controller, msg);
                                 }
                             }
                         }
@@ -212,6 +230,8 @@ public class Dstore {
                                                 break;
                                             }
 
+                                            DstoreLogger.getInstance().messageReceived(client, input);
+
                                             String command = message[0];
         
                                             if(command.equals(Protocol.STORE_TOKEN))
@@ -221,7 +241,9 @@ public class Dstore {
 
                                                 log("Client " + client.getPort() + " sent command STORE . FileName: " + fileName + " FileSize: " + fileSize);
                                                 
-                                                clientOutput.println(Protocol.ACK_TOKEN);
+                                                String msg = Protocol.ACK_TOKEN;
+                                                clientOutput.println(msg);
+                                                DstoreLogger.getInstance().messageSent(client, msg);
 
                                                 log("Sent ACK to client " + client.getPort() + " for file: " + fileName);
 
@@ -239,7 +261,9 @@ public class Dstore {
                                                 fo.close();
                                                 
                                                 log("Sending STORE_ACK token to controller " + controller.getPort());
-                                                controllerOutput.println(Protocol.STORE_ACK_TOKEN + " " + fileName);
+                                                msg = Protocol.STORE_ACK_TOKEN + " " + fileName;
+                                                controllerOutput.println(msg);
+                                                DstoreLogger.getInstance().messageSent(controller, msg);
 
                                                 synchronized(fileLock)
                                                 {

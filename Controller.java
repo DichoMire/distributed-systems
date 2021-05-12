@@ -48,6 +48,13 @@ public class Controller {
         updateStorageCount();
 
         log("Controller initialized");
+        try {
+            ControllerLogger.init(Logger.LoggingType.ON_FILE_AND_TERMINAL);
+        } catch (IOException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
+
         mainSequence();
     }
 
@@ -90,12 +97,14 @@ public class Controller {
                             try
                             {
                                 String input = contactInput.readLine();
-                                if(input.equals(null))
+                                if(input == null)
                                 {
                                     log("Contact " + contact.getPort() + " sent a null message. Closing socket.");
                                     contactInput.close();
                                     break;
                                 }
+
+                                ControllerLogger.getInstance().messageReceived(contact, input);
 
                                 String[] message = input.split(" ");
 
@@ -113,6 +122,8 @@ public class Controller {
                                         storages.put(contact.getPort(), new StorageInfo(contact, contactInput, contactOutput, port));
                                     }
 
+                                    ControllerLogger.getInstance().dstoreJoined(contact, port);
+
                                     log("Adding storage with port: " + Integer.toString(port));
                                     updateStorageCount();
                                 }
@@ -127,7 +138,9 @@ public class Controller {
                                     if(state == States.INSUFFICIENT_REPLICATION)
                                     {
                                         log("Insufficient replication. Command not executed.");
-                                        contactOutput.println(Protocol.ERROR_NOT_ENOUGH_DSTORES_TOKEN);
+                                        String msg = Protocol.ERROR_NOT_ENOUGH_DSTORES_TOKEN;
+                                        contactOutput.println(msg);
+                                        ControllerLogger.getInstance().messageSent(contact, msg);
                                         continue;
                                     }
 
@@ -192,12 +205,16 @@ public class Controller {
                                     if(isContained)
                                     {
                                         log("Client " + contact.getPort() + " attempted to add file: " + fileName + " But it already exists.");
-                                        contactOutput.println(Protocol.ERROR_FILE_ALREADY_EXISTS_TOKEN);
+                                        String msg = Protocol.ERROR_FILE_ALREADY_EXISTS_TOKEN;
+                                        contactOutput.println(msg);
+                                        ControllerLogger.getInstance().messageSent(contact, msg);
                                     }
                                     else
                                     {
                                         log("Sending to client: " + contact.getPort() + " STORE_TO command to ports: " + storeToPorts + " for file " + fileName);
-                                        contactOutput.println(Protocol.STORE_TO_TOKEN + " " + storeToPorts);
+                                        String msg = Protocol.STORE_TO_TOKEN + " " + storeToPorts;
+                                        contactOutput.println(msg);
+                                        ControllerLogger.getInstance().messageSent(contact, msg);
                                     }
                                 }
                                 //Storage STORE_ACK command
@@ -211,7 +228,7 @@ public class Controller {
 
                                     boolean storeComplete = false;
                                     Socket modifier = null;
-                                    PrintWriter removeRequesterPrint = null;
+                                    PrintWriter storeRequesterPrint = null;
 
                                     synchronized(fileLock)
                                     {
@@ -220,19 +237,22 @@ public class Controller {
                                             storeComplete = true;
                                             fileIndex.get(fileName).setState(States.STORE_COMPLETE);
                                             modifier = fileIndex.get(fileName).getModifier();
-                                            removeRequesterPrint = fileIndex.get(fileName).getModifierPrint();
+                                            storeRequesterPrint = fileIndex.get(fileName).getModifierPrint();
                                         }
                                     }
 
-                                    synchronized(storageLock)
-                                    {
-                                        storages.get(currentStoragePort).increaseFiles();
-                                    }
+                                    //Original increase of numOfFiles in storages
+                                    // synchronized(storageLock)
+                                    // {
+                                    //     storages.get(currentStoragePort).increaseFiles();
+                                    // }
 
                                     if(storeComplete)
                                     {
                                         log("Sending to client: " + modifier.getPort() + " STORE_COMPLETE command");
-                                        removeRequesterPrint.println(Protocol.STORE_COMPLETE_TOKEN);
+                                        String msg = Protocol.STORE_COMPLETE_TOKEN;
+                                        storeRequesterPrint.println(msg);
+                                        ControllerLogger.getInstance().messageSent(modifier, msg);
                                     }
                                 }
                                 //Client load command
@@ -241,7 +261,9 @@ public class Controller {
                                     if(state == States.INSUFFICIENT_REPLICATION)
                                     {
                                         log("Insufficient replication. Command not executed.");
-                                        contactOutput.println(Protocol.ERROR_NOT_ENOUGH_DSTORES_TOKEN);
+                                        String msg = Protocol.ERROR_NOT_ENOUGH_DSTORES_TOKEN;
+                                        contactOutput.println(msg);
+                                        ControllerLogger.getInstance().messageSent(contact, msg);
                                         continue;
                                     }
 
@@ -261,7 +283,9 @@ public class Controller {
                                     if(!isContained)
                                     {
                                         log("Client " + contact.getPort() + " requested file " + fileName + " " + " but it doesn't exist.");
-                                        contactOutput.println(Protocol.ERROR_FILE_DOES_NOT_EXIST_TOKEN);
+                                        String msg = Protocol.ERROR_FILE_DOES_NOT_EXIST_TOKEN;
+                                        contactOutput.println(msg);
+                                        ControllerLogger.getInstance().messageSent(contact, msg);
                                         continue;
                                     }
 
@@ -279,7 +303,9 @@ public class Controller {
     
                                     log("Sending to client: " + contact.getPort() + " LOAD_FROM command to port: " + storagePort);
     
-                                    contactOutput.println(Protocol.LOAD_FROM_TOKEN + " " + storagePort + " " + fileSize);
+                                    String msg = Protocol.LOAD_FROM_TOKEN + " " + storagePort + " " + fileSize;
+                                    contactOutput.println(msg);
+                                    ControllerLogger.getInstance().messageSent(contact, msg);
                                 }
                                 //Client reload command
                                 else if(command.equals(Protocol.RELOAD_TOKEN))
@@ -287,7 +313,9 @@ public class Controller {
                                     if(state == States.INSUFFICIENT_REPLICATION)
                                     {
                                         log("Insufficient replication. Command not executed.");
-                                        contactOutput.println(Protocol.ERROR_NOT_ENOUGH_DSTORES_TOKEN);
+                                        String msg = Protocol.ERROR_NOT_ENOUGH_DSTORES_TOKEN;
+                                        contactOutput.println(msg);
+                                        ControllerLogger.getInstance().messageSent(contact, msg);
                                         continue;
                                     }
 
@@ -314,7 +342,9 @@ public class Controller {
                                     if(storagePort.equals(null))
                                     {
                                         log("Could not locate any storages that contain file " + fileName + " . Forcibly deleting file from index.");
-                                        contactOutput.println(Protocol.ERROR_LOAD_TOKEN);
+                                        String msg = Protocol.ERROR_LOAD_TOKEN;
+                                        contactOutput.println(msg);
+                                        ControllerLogger.getInstance().messageSent(contact, msg);
                                         log("Sending to client: " + contact.getPort() + " ERROR_LOAD.");
                                         
                                         //POTENTIALLY WANT TO CHECK IF THERE IS ISSUE WITH PORTS
@@ -325,7 +355,9 @@ public class Controller {
                                     }
                                     
                                     log("Sending to client: " + contact.getPort() + " LOAD_FROM command to port: " + storagePort);
-                                    contactOutput.println(Protocol.LOAD_FROM_TOKEN + " " + storagePort + " " + fileSize);
+                                    String msg = Protocol.LOAD_FROM_TOKEN + " " + storagePort + " " + fileSize;
+                                    contactOutput.println(msg);
+                                    ControllerLogger.getInstance().messageSent(contact, msg);
                                 }
                                 //Client remove command
                                 else if(command.equals(Protocol.REMOVE_TOKEN))
@@ -333,7 +365,9 @@ public class Controller {
                                     if(state == States.INSUFFICIENT_REPLICATION)
                                     {
                                         log("Insufficient replication. Command not executed.");
-                                        contactOutput.println(Protocol.ERROR_NOT_ENOUGH_DSTORES_TOKEN);
+                                        String msg = Protocol.ERROR_NOT_ENOUGH_DSTORES_TOKEN;
+                                        contactOutput.println(msg);
+                                        ControllerLogger.getInstance().messageSent(contact, msg);
                                         continue;
                                     }
 
@@ -355,7 +389,9 @@ public class Controller {
                                     if(!isContained)
                                     {
                                         log("Client " + contact.getPort() + " requested to remove file " + fileName + " " + " but it doesn't exist.");
-                                        contactOutput.println(Protocol.ERROR_FILE_DOES_NOT_EXIST_TOKEN);
+                                        String msg = Protocol.ERROR_FILE_DOES_NOT_EXIST_TOKEN;
+                                        contactOutput.println(msg);
+                                        ControllerLogger.getInstance().messageSent(contact, msg);
                                         continue;
                                     }
 
@@ -389,7 +425,9 @@ public class Controller {
                                             PrintWriter pr = storagePrinters.get(i);
                                             int portNum = socket.getPort();
                                             log("Sending to storage: " + portNum + " REMOVE command for file " + fileName);
-                                            pr.println(Protocol.REMOVE_TOKEN + " " + fileName);
+                                            String msg = Protocol.REMOVE_TOKEN + " " + fileName;
+                                            pr.println(msg);
+                                            ControllerLogger.getInstance().messageSent(socket, msg);
                                         }
                                         catch(Exception e)
                                         {
@@ -429,7 +467,9 @@ public class Controller {
                                     if(removeComplete)
                                     {
                                         log("Sending to client: " + removeRequester.getPort() + " REMOVE_COMPLETE command");
-                                        removeRequesterPrint.println(Protocol.REMOVE_COMPLETE_TOKEN);
+                                        String msg = Protocol.REMOVE_COMPLETE_TOKEN;
+                                        removeRequesterPrint.println(msg);
+                                        ControllerLogger.getInstance().messageSent(removeRequester, msg);
                                     }
                                 }
                                 //Client list command
@@ -438,7 +478,9 @@ public class Controller {
                                     if(state == States.INSUFFICIENT_REPLICATION)
                                     {
                                         log("Insufficient replication. Command not executed.");
-                                        contactOutput.println(Protocol.ERROR_NOT_ENOUGH_DSTORES_TOKEN);
+                                        String msg = Protocol.ERROR_NOT_ENOUGH_DSTORES_TOKEN;
+                                        contactOutput.println(msg);
+                                        ControllerLogger.getInstance().messageSent(contact, msg);
                                         continue;
                                     }
 
@@ -465,12 +507,15 @@ public class Controller {
                                     }
     
                                     log("Sending to client: " + contact.getPort() + " LIST command with contents " + fileList);
-                                    contactOutput.println(Protocol.LIST_TOKEN + " " + fileList);
+                                    String msg = Protocol.LIST_TOKEN + " " + fileList;
+                                    contactOutput.println(msg);
+                                    ControllerLogger.getInstance().messageSent(contact, msg);
                                 }
                             }
                             catch(IOException e)
                             {
-                                log("Error while reading from IO of contact");
+                                log("Error while reading from IO of contact. Closing contact.");
+                                break;
                             }
                         } 
                     }).start(); 
@@ -533,18 +578,23 @@ public class Controller {
 			}  
 		}); 
 
-        int counter = 0;
+        list = new LinkedList<Entry<Integer, Integer>>(list.subList(0, replication));
+
+        synchronized(storageLock)
+        {
+            for (Entry<Integer, Integer> entry : list)   
+		    {  
+                storages.get(entry.getKey()).increaseFiles();
+		    }
+        }
+
         for (Entry<Integer, Integer> entry : list)   
 		{  
-            counter++;
             ports += Integer.toString(entry.getKey()) + " ";
-            if(counter == replication)
-            {
-                break;
-            }
 		}
 
         ports = ports.substring(0, ports.length()-1);
+        log("Algorithm deemed the following ports for storage: " + ports);
         return ports;
     }
 
