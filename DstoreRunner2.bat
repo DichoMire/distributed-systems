@@ -1,1 +1,1 @@
-java Dstore 10002 12345 1000 Dstore2
+java Dstore 10002 12345 400 Dstore2

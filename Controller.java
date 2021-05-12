@@ -218,6 +218,26 @@ public class Controller {
                                         ControllerLogger.getInstance().messageSent(contact, msg);
 
                                         //ADD TIMEOUT
+                                        long timeoutStart = System.currentTimeMillis();
+                                        while(true)
+                                        {
+                                            if(System.currentTimeMillis() - timeoutStart >= timeout)
+                                            {
+                                                log(" Timeout in store : " + (System.currentTimeMillis() - timeoutStart));
+                                                synchronized(fileLock)
+                                                {
+                                                    if(!(fileIndex.get(fileName).getState() == States.STORE_COMPLETE))
+                                                    { 
+                                                        //Safe???
+                                                        //Flip me
+                                                        fileIndex.remove(fileName);
+                                                    }
+                                                }
+                                                break;
+                                            }
+                                        }
+
+                                        
                                     }
                                 }
                                 //Storage STORE_ACK command
@@ -227,35 +247,52 @@ public class Controller {
 
                                     int currentStoragePort = contact.getPort();
 
-                                    log("Received STORE_ACK from " + currentStoragePort + " for file " + fileName);
-
-                                    boolean storeComplete = false;
-                                    Socket modifier = null;
-                                    PrintWriter storeRequesterPrint = null;
-
                                     synchronized(fileLock)
                                     {
-                                        if(fileIndex.get(fileName).decreaseAcks())
+                                        if(!fileIndex.containsKey(fileName))
                                         {
-                                            storeComplete = true;
-                                            fileIndex.get(fileName).setState(States.STORE_COMPLETE);
-                                            modifier = fileIndex.get(fileName).getModifier();
-                                            storeRequesterPrint = fileIndex.get(fileName).getModifierPrint();
+                                            //File has been removed since the initial store request.
+                                            log("Received STORE_ACK from " + currentStoragePort + " for file " + fileName + " but it is missing. Probably has timed out.");
+                                            continue;
                                         }
                                     }
 
-                                    //Original increase of numOfFiles in storages
-                                    // synchronized(storageLock)
-                                    // {
-                                    //     storages.get(currentStoragePort).increaseFiles();
-                                    // }
-
-                                    if(storeComplete)
+                                    try
                                     {
-                                        log("Sending to client: " + modifier.getPort() + " STORE_COMPLETE command");
-                                        String msg = Protocol.STORE_COMPLETE_TOKEN;
-                                        storeRequesterPrint.println(msg);
-                                        ControllerLogger.getInstance().messageSent(modifier, msg);
+                                        log("Received STORE_ACK from " + currentStoragePort + " for file " + fileName);
+
+                                        boolean storeComplete = false;
+                                        Socket modifier = null;
+                                        PrintWriter storeRequesterPrint = null;
+
+                                        synchronized(fileLock)
+                                        {
+                                            if(fileIndex.get(fileName).decreaseAcks())
+                                            {
+                                                storeComplete = true;
+                                                fileIndex.get(fileName).setState(States.STORE_COMPLETE);
+                                                modifier = fileIndex.get(fileName).getModifier();
+                                                storeRequesterPrint = fileIndex.get(fileName).getModifierPrint();
+                                            }
+                                        }
+
+                                        //Original increase of numOfFiles in storages
+                                        // synchronized(storageLock)
+                                        // {
+                                        //     storages.get(currentStoragePort).increaseFiles();
+                                        // }
+
+                                        if(storeComplete)
+                                        {
+                                            log("Sending to client: " + modifier.getPort() + " STORE_COMPLETE command");
+                                            String msg = Protocol.STORE_COMPLETE_TOKEN;
+                                            storeRequesterPrint.println(msg);
+                                            ControllerLogger.getInstance().messageSent(modifier, msg);
+                                        }
+                                    }
+                                    catch(Exception e)
+                                    {
+                                        log("Some error occured during STORE_ACK from storage " + currentStoragePort + " of file " + fileName + " continuing.");
                                     }
                                 }
                                 //Client load command
@@ -437,6 +474,26 @@ public class Controller {
                                             break;
                                         }
                                     }
+
+                                    //Remove complete; start timeout and prep
+                                    long timeoutStart = System.currentTimeMillis();
+                                    while(true)
+                                    {
+                                        if(System.currentTimeMillis() - timeoutStart >= timeout)
+                                        {
+                                            log(" Timeout in remove : " + (System.currentTimeMillis() - timeoutStart));
+                                            synchronized(fileLock)
+                                            {
+                                                if(fileIndex.containsKey(fileName))
+                                                {
+                                                    //REMOVING FILE IF REMOVE COMMAND TIMES OUT. LACKS LOGGING!
+                                                    fileIndex.remove(fileName);
+                                                    //Needs polishing
+                                                }
+                                            }
+                                            break;
+                                        }
+                                    }
                                 }
                                 else if(command.equals(Protocol.REMOVE_ACK_TOKEN))
                                 {
@@ -445,34 +502,51 @@ public class Controller {
 
                                     int currentStoragePort = contact.getPort();
 
-                                    log("Received REMOVE_ACK from " + currentStoragePort + " for file " + fileName);
-
-                                    boolean removeComplete = false;
-                                    Socket removeRequester = null;
-                                    PrintWriter removeRequesterPrint = null;
-
                                     synchronized(fileLock)
                                     {
-                                        if(fileIndex.get(fileName).decreaseAcks())
+                                        if(!fileIndex.containsKey(fileName))
                                         {
-                                            removeComplete = true;
-                                            removeRequester = fileIndex.get(fileName).getModifier();
-                                            removeRequesterPrint = fileIndex.get(fileName).getModifierPrint();
-                                            fileIndex.remove(fileName);
+                                            //File has been removed since the initial store request.
+                                            log("Received REMOVE_ACK from " + currentStoragePort + " for file " + fileName + " but it is missing. Probably has timed out.");
+                                            continue;
                                         }
                                     }
 
-                                    synchronized(storageLock)
+                                    try
                                     {
-                                        storages.get(currentStoragePort).decreaseFiles();
-                                    }
+                                        log("Received REMOVE_ACK from " + currentStoragePort + " for file " + fileName);
 
-                                    if(removeComplete)
+                                        boolean removeComplete = false;
+                                        Socket removeRequester = null;
+                                        PrintWriter removeRequesterPrint = null;
+    
+                                        synchronized(fileLock)
+                                        {
+                                            if(fileIndex.get(fileName).decreaseAcks())
+                                            {
+                                                removeComplete = true;
+                                                removeRequester = fileIndex.get(fileName).getModifier();
+                                                removeRequesterPrint = fileIndex.get(fileName).getModifierPrint();
+                                                fileIndex.remove(fileName);
+                                            }
+                                        }
+    
+                                        synchronized(storageLock)
+                                        {
+                                            storages.get(currentStoragePort).decreaseFiles();
+                                        }
+    
+                                        if(removeComplete)
+                                        {
+                                            log("Sending to client: " + removeRequester.getPort() + " REMOVE_COMPLETE command");
+                                            String msg = Protocol.REMOVE_COMPLETE_TOKEN;
+                                            removeRequesterPrint.println(msg);
+                                            ControllerLogger.getInstance().messageSent(removeRequester, msg);
+                                        }
+                                    }
+                                    catch(Exception e)
                                     {
-                                        log("Sending to client: " + removeRequester.getPort() + " REMOVE_COMPLETE command");
-                                        String msg = Protocol.REMOVE_COMPLETE_TOKEN;
-                                        removeRequesterPrint.println(msg);
-                                        ControllerLogger.getInstance().messageSent(removeRequester, msg);
+                                        log("Some error occured during STORE_ACK from storage " + currentStoragePort + " of file " + fileName + " continuing.");
                                     }
                                 }
                                 //Client list command

@@ -1,4 +1,5 @@
 del *.class
+del *.log
 javac @classes
 start cmd /k call controllerRunnerMultipleDstores.bat
 timeout 1
