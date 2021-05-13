@@ -113,7 +113,19 @@ public class Controller {
                                 //Join command
                                 //This command is only used by DStores to initialize
                                 if(command.equals(Protocol.JOIN_TOKEN)){
-                                    int port = Integer.parseInt(message[1]);
+                                    int port;
+                                    port = Integer.parseInt(message[1]);
+
+
+                                    try
+                                    {
+                                        
+                                    }
+                                    catch(Exception e)
+                                    {
+                                        log("Malformed content of message of command: " + Protocol.JOIN_TOKEN);
+                                        continue;
+                                    }
 
                                     log("Storage " + port + " sent command JOIN from port " + contact.getPort());
 
@@ -132,6 +144,16 @@ public class Controller {
                                 {
                                     String fileName = message[1];
                                     int fileSize = Integer.parseInt(message[2]);
+
+                                    try
+                                    {
+                                        
+                                    }
+                                    catch(Exception e)
+                                    {
+                                        log("Malformed content of message of command: " + Protocol.JOIN_TOKEN);
+                                        continue;
+                                    }
 
                                     //Check Invalid input
 
@@ -245,6 +267,16 @@ public class Controller {
                                 {
                                     String fileName = message[1];
 
+                                    try
+                                    {
+                                        
+                                    }
+                                    catch(Exception e)
+                                    {
+                                        log("Malformed content of message of command: " + Protocol.JOIN_TOKEN);
+                                        continue;
+                                    }
+
                                     int currentStoragePort = contact.getPort();
 
                                     synchronized(fileLock)
@@ -309,6 +341,16 @@ public class Controller {
 
                                     String fileName = message[1];
 
+                                    try
+                                    {
+                                        
+                                    }
+                                    catch(Exception e)
+                                    {
+                                        log("Malformed content of message of command: " + Protocol.JOIN_TOKEN);
+                                        continue;
+                                    }
+
                                     log("Received LOAD from " + contact.getPort() + " for file " + fileName);
                                     
                                     boolean isContained = false;
@@ -360,6 +402,16 @@ public class Controller {
                                     }
 
                                     String fileName = message[1];
+
+                                    try
+                                    {
+                                        
+                                    }
+                                    catch(Exception e)
+                                    {
+                                        log("Malformed content of message of command: " + Protocol.JOIN_TOKEN);
+                                        continue;
+                                    }
 
                                     log("Received RELOAD from " + contact.getPort() + " for file " + fileName);
                                     
@@ -495,6 +547,109 @@ public class Controller {
                                         }
                                     }
                                 }
+                                //Storage ERROR file command
+                                else if(command.equals(Protocol.ERROR_FILE_DOES_NOT_EXIST_TOKEN))
+                                {
+                                    //REQUIRES CHECK IF FILE EXISTS
+                                    String fileName = message[1];
+
+                                    try
+                                    {
+                                        
+                                    }
+                                    catch(Exception e)
+                                    {
+                                        log("Malformed content of message of command: " + Protocol.JOIN_TOKEN);
+                                        continue;
+                                    }
+
+                                    int currentStoragePort = contact.getPort();
+
+                                    synchronized(fileLock)
+                                    {
+                                        if(!fileIndex.containsKey(fileName))
+                                        {
+                                            //File has been removed since the initial store request.
+                                            log("Received ERROR_FILE_DOES_NOT_EXIST_TOKEN from " + currentStoragePort + " for file " + fileName + " but it is missing. Probably has timed out.");
+                                            continue;
+                                        }
+                                    }
+
+                                    try
+                                    {
+                                        int fileState;
+                                        synchronized(fileLock)
+                                        {
+                                            fileState = fileIndex.get(fileName).getState();
+                                        }
+
+                                        if(fileState == States.REMOVE_IN_PROGRESS)
+                                        {
+                                            boolean removeComplete = false;
+                                            Socket removeRequester = null;
+                                            PrintWriter removeRequesterPrint = null;
+        
+                                            synchronized(fileLock)
+                                            {
+                                                if(fileIndex.get(fileName).decreaseAcks())
+                                                {
+                                                    removeComplete = true;
+                                                    removeRequester = fileIndex.get(fileName).getModifier();
+                                                    removeRequesterPrint = fileIndex.get(fileName).getModifierPrint();
+                                                    fileIndex.remove(fileName);
+                                                }
+                                            }
+    
+                                            synchronized(storageLock)
+                                            {
+                                                storages.get(currentStoragePort).decreaseFiles();
+                                            }
+    
+                                            if(removeComplete)
+                                            {
+                                                log("Sending to client: " + removeRequester.getPort() + " REMOVE_COMPLETE command");
+                                                String msg = Protocol.REMOVE_COMPLETE_TOKEN;
+                                                removeRequesterPrint.println(msg);
+                                                ControllerLogger.getInstance().messageSent(removeRequester, msg);
+                                            }
+                                        }
+                                        else if(fileState == States.STORE_IN_PROGRESS)
+                                        {
+                                            boolean storeComplete = false;
+                                            Socket modifier = null;
+                                            PrintWriter storeRequesterPrint = null;
+
+                                            synchronized(fileLock)
+                                            {
+                                                if(fileIndex.get(fileName).decreaseAcks())
+                                                {
+                                                    storeComplete = true;
+                                                    fileIndex.get(fileName).setState(States.STORE_COMPLETE);
+                                                    modifier = fileIndex.get(fileName).getModifier();
+                                                    storeRequesterPrint = fileIndex.get(fileName).getModifierPrint();
+                                                }
+                                            }
+
+                                            //Original increase of numOfFiles in storages
+                                            // synchronized(storageLock)
+                                            // {
+                                            //     storages.get(currentStoragePort).increaseFiles();
+                                            // }
+
+                                            if(storeComplete)
+                                            {
+                                                log("Sending to client: " + modifier.getPort() + " STORE_COMPLETE command");
+                                                String msg = Protocol.STORE_COMPLETE_TOKEN;
+                                                storeRequesterPrint.println(msg);
+                                                ControllerLogger.getInstance().messageSent(modifier, msg);
+                                            }
+                                        }
+                                    }
+                                    catch(Exception e)
+                                    {
+                                        log("Some error occured during ERROR_FILE_DOES_NOT_EXIST_TOKEN from storage " + currentStoragePort + " of file " + fileName + " continuing.");
+                                    }
+                                }
                                 else if(command.equals(Protocol.REMOVE_ACK_TOKEN))
                                 {
                                     //REQUIRES CHECK IF FILE EXISTS
@@ -546,7 +701,7 @@ public class Controller {
                                     }
                                     catch(Exception e)
                                     {
-                                        log("Some error occured during STORE_ACK from storage " + currentStoragePort + " of file " + fileName + " continuing.");
+                                        log("Some error occured during REMOVE_ACK from storage " + currentStoragePort + " of file " + fileName + " continuing.");
                                     }
                                 }
                                 //Client list command
@@ -558,6 +713,16 @@ public class Controller {
                                         String msg = Protocol.ERROR_NOT_ENOUGH_DSTORES_TOKEN;
                                         contactOutput.println(msg);
                                         ControllerLogger.getInstance().messageSent(contact, msg);
+                                        continue;
+                                    }
+
+                                    try
+                                    {
+                                        
+                                    }
+                                    catch(Exception e)
+                                    {
+                                        log("Malformed content of message of command: " + Protocol.JOIN_TOKEN);
                                         continue;
                                     }
 
@@ -587,6 +752,10 @@ public class Controller {
                                     String msg = Protocol.LIST_TOKEN + " " + fileList;
                                     contactOutput.println(msg);
                                     ControllerLogger.getInstance().messageSent(contact, msg);
+                                }
+                                else
+                                {
+                                    log("Malformed command received. Continuing.");
                                 }
                             }
                             catch(IOException e)
