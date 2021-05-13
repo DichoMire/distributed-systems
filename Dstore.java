@@ -1,7 +1,6 @@
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileOutputStream;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -113,6 +112,14 @@ public class Dstore {
                                 //Controller List Command
                                 if(command.equals(Protocol.LIST_TOKEN))
                                 {   
+                                    try
+                                    {
+                                        String test = message[1];
+                                        log("Command " + Protocol.LIST_TOKEN + " contained more arguments than expected. Continuing.");
+                                        continue;
+                                    }
+                                    catch(Exception ignored){}
+
                                     log("Controller " + controller.getPort() + " sent command LIST .");
 
                                     String fileList = "";
@@ -135,7 +142,25 @@ public class Dstore {
                                 //Controller REMOVE command
                                 else if(command.equals(Protocol.REMOVE_TOKEN))
                                 {   
-                                    String fileName = message[1];
+                                    String fileName;
+
+                                    try
+                                    {
+                                        fileName = message[1];
+                                    }
+                                    catch(Exception e)
+                                    {
+                                        log("Malformed content of message of command: " + Protocol.REMOVE_TOKEN);
+                                        continue;
+                                    }
+
+                                    try
+                                    {
+                                        String test = message[2];
+                                        log("Command " + Protocol.REMOVE_TOKEN + " contained more arguments than expected. Continuing.");
+                                        continue;
+                                    }
+                                    catch(Exception ignored){}
 
                                     boolean isContained = false;
 
@@ -236,8 +261,28 @@ public class Dstore {
         
                                             if(command.equals(Protocol.STORE_TOKEN))
                                             {
-                                                String fileName = message[1];
-                                                int fileSize = Integer.parseInt(message[2]);
+                                                String fileName;
+                                                int fileSize;
+
+                                                try
+                                                {
+                                                    fileName = message[1];
+                                                    fileSize = Integer.parseInt(message[2]);
+
+                                                }
+                                                catch(Exception e)
+                                                {
+                                                    log("Malformed content of message of command: " + Protocol.STORE_TOKEN);
+                                                    continue;
+                                                }
+
+                                                try
+                                                {
+                                                    String test = message[3];
+                                                    log("Command " + Protocol.STORE_TOKEN + " contained more arguments than expected. Continuing.");
+                                                    continue;
+                                                }
+                                                catch(Exception ignored){}
 
                                                 log("Client " + client.getPort() + " sent command STORE . FileName: " + fileName + " FileSize: " + fileSize);
                                                 
@@ -276,7 +321,25 @@ public class Dstore {
                                             }
                                             else if(command.equals(Protocol.LOAD_DATA_TOKEN))
                                             {
-                                                String fileName = message[1];
+                                                String fileName;
+
+                                                try
+                                                {
+                                                    fileName = message[1];
+                                                }
+                                                catch(Exception e)
+                                                {
+                                                    log("Malformed content of message of command: " + Protocol.LOAD_DATA_TOKEN);
+                                                    continue;
+                                                }
+
+                                                try
+                                                {
+                                                    String test = message[2];
+                                                    log("Command " + Protocol.LOAD_DATA_TOKEN + " contained more arguments than expected. Continuing.");
+                                                    continue;
+                                                }
+                                                catch(Exception ignored){}
 
                                                 log("Client " + client.getPort() + " sent command LOAD_DATA . FileName: " + fileName);
                                                 
