@@ -354,6 +354,11 @@ public class Dstore {
                                                 }
 
                                                 //Might require synchronization
+                                                //If the file is contained when the check is made, but after lock drops,
+                                                //The next operation on the fileIndex is remove,
+                                                //It can possibly remove file while this unsynchronized snippet of code executes
+                                                
+                                                //Lmao who cares, it probably won't happen
                                                 if(isContained)
                                                 {
                                                     File file = new File("");
