@@ -114,18 +114,24 @@ public class Controller {
                                 //This command is only used by DStores to initialize
                                 if(command.equals(Protocol.JOIN_TOKEN)){
                                     int port;
-                                    port = Integer.parseInt(message[1]);
-
 
                                     try
                                     {
-                                        
+                                        port = Integer.parseInt(message[1]);
                                     }
                                     catch(Exception e)
                                     {
                                         log("Malformed content of message of command: " + Protocol.JOIN_TOKEN);
                                         continue;
                                     }
+
+                                    try
+                                    {
+                                        String test = message[2];
+                                        log("Command " + Protocol.JOIN_TOKEN + " contained more arguments than expected. Continuing.");
+                                        continue;
+                                    }
+                                    catch(Exception ignored){}
 
                                     log("Storage " + port + " sent command JOIN from port " + contact.getPort());
 
@@ -142,18 +148,27 @@ public class Controller {
                                 //Client store command
                                 else if(command.equals(Protocol.STORE_TOKEN))
                                 {
-                                    String fileName = message[1];
-                                    int fileSize = Integer.parseInt(message[2]);
+                                    String fileName;
+                                    int fileSize;
 
                                     try
                                     {
-                                        
+                                        fileName = message[1];
+                                        fileSize = Integer.parseInt(message[2]);
                                     }
                                     catch(Exception e)
                                     {
-                                        log("Malformed content of message of command: " + Protocol.JOIN_TOKEN);
+                                        log("Malformed content of message of command: " + Protocol.STORE_TOKEN);
                                         continue;
                                     }
+
+                                    try
+                                    {
+                                        String test = message[3];
+                                        log("Command " + Protocol.STORE_TOKEN + " contained more arguments than expected. Continuing.");
+                                        continue;
+                                    }
+                                    catch(Exception ignored){}
 
                                     //Check Invalid input
 
@@ -265,17 +280,25 @@ public class Controller {
                                 //Storage STORE_ACK command
                                 else if(command.equals(Protocol.STORE_ACK_TOKEN))
                                 {
-                                    String fileName = message[1];
+                                    String fileName;
 
                                     try
                                     {
-                                        
+                                        fileName = message[1];
                                     }
                                     catch(Exception e)
                                     {
-                                        log("Malformed content of message of command: " + Protocol.JOIN_TOKEN);
+                                        log("Malformed content of message of command: " + Protocol.STORE_ACK_TOKEN);
                                         continue;
                                     }
+
+                                    try
+                                    {
+                                        String test = message[2];
+                                        log("Command " + Protocol.STORE_ACK_TOKEN + " contained more arguments than expected. Continuing.");
+                                        continue;
+                                    }
+                                    catch(Exception ignored){}
 
                                     int currentStoragePort = contact.getPort();
 
@@ -339,17 +362,25 @@ public class Controller {
                                         continue;
                                     }
 
-                                    String fileName = message[1];
+                                    String fileName;
 
                                     try
                                     {
-                                        
+                                        fileName = message[1];
                                     }
                                     catch(Exception e)
                                     {
-                                        log("Malformed content of message of command: " + Protocol.JOIN_TOKEN);
+                                        log("Malformed content of message of command: " + Protocol.LOAD_TOKEN);
                                         continue;
                                     }
+
+                                    try
+                                    {
+                                        String test = message[2];
+                                        log("Command " + Protocol.LOAD_TOKEN + " contained more arguments than expected. Continuing.");
+                                        continue;
+                                    }
+                                    catch(Exception ignored){}
 
                                     log("Received LOAD from " + contact.getPort() + " for file " + fileName);
                                     
@@ -401,17 +432,25 @@ public class Controller {
                                         continue;
                                     }
 
-                                    String fileName = message[1];
+                                    String fileName;
 
                                     try
                                     {
-                                        
+                                        fileName = message[1];
                                     }
                                     catch(Exception e)
                                     {
-                                        log("Malformed content of message of command: " + Protocol.JOIN_TOKEN);
+                                        log("Malformed content of message of command: " + Protocol.RELOAD_TOKEN);
                                         continue;
                                     }
+
+                                    try
+                                    {
+                                        String test = message[2];
+                                        log("Command " + Protocol.RELOAD_TOKEN + " contained more arguments than expected. Continuing.");
+                                        continue;
+                                    }
+                                    catch(Exception ignored){}
 
                                     log("Received RELOAD from " + contact.getPort() + " for file " + fileName);
                                     
@@ -463,7 +502,25 @@ public class Controller {
                                         continue;
                                     }
 
-                                    String fileName = message[1];
+                                    String fileName;
+
+                                    try
+                                    {
+                                        fileName = message[1];
+                                    }
+                                    catch(Exception e)
+                                    {
+                                        log("Malformed content of message of command: " + Protocol.REMOVE_TOKEN);
+                                        continue;
+                                    }
+
+                                    try
+                                    {
+                                        String test = message[2];
+                                        log("Command " + Protocol.REMOVE_TOKEN + " contained more arguments than expected. Continuing.");
+                                        continue;
+                                    }
+                                    catch(Exception ignored){}
 
                                     boolean isContained = false;
                                     synchronized(fileLock)
@@ -551,17 +608,25 @@ public class Controller {
                                 else if(command.equals(Protocol.ERROR_FILE_DOES_NOT_EXIST_TOKEN))
                                 {
                                     //REQUIRES CHECK IF FILE EXISTS
-                                    String fileName = message[1];
+                                    String fileName;
 
                                     try
                                     {
-                                        
+                                        fileName = message[1];
                                     }
                                     catch(Exception e)
                                     {
-                                        log("Malformed content of message of command: " + Protocol.JOIN_TOKEN);
+                                        log("Malformed content of message of command: " + Protocol.ERROR_FILE_DOES_NOT_EXIST_TOKEN);
                                         continue;
                                     }
+
+                                    try
+                                    {
+                                        String test = message[2];
+                                        log("Command " + Protocol.ERROR_FILE_DOES_NOT_EXIST_TOKEN + " contained more arguments than expected. Continuing.");
+                                        continue;
+                                    }
+                                    catch(Exception ignored){}
 
                                     int currentStoragePort = contact.getPort();
 
@@ -653,7 +718,25 @@ public class Controller {
                                 else if(command.equals(Protocol.REMOVE_ACK_TOKEN))
                                 {
                                     //REQUIRES CHECK IF FILE EXISTS
-                                    String fileName = message[1];
+                                    String fileName;
+                                    
+                                    try
+                                    {
+                                        fileName = message[1];
+                                    }
+                                    catch(Exception e)
+                                    {
+                                        log("Malformed content of message of command: " + Protocol.REMOVE_ACK_TOKEN);
+                                        continue;
+                                    }
+
+                                    try
+                                    {
+                                        String test = message[2];
+                                        log("Command " + Protocol.REMOVE_ACK_TOKEN + " contained more arguments than expected. Continuing.");
+                                        continue;
+                                    }
+                                    catch(Exception ignored){}
 
                                     int currentStoragePort = contact.getPort();
 
@@ -718,13 +801,11 @@ public class Controller {
 
                                     try
                                     {
-                                        
-                                    }
-                                    catch(Exception e)
-                                    {
-                                        log("Malformed content of message of command: " + Protocol.JOIN_TOKEN);
+                                        String test = message[1];
+                                        log("Command " + Protocol.LIST_TOKEN + " contained more arguments than expected. Continuing.");
                                         continue;
                                     }
+                                    catch(Exception ignored){}
 
                                     log("Client " + contact.getPort() + " sent command LIST .");
 
