@@ -1,3 +1,4 @@
+import java.io.PrintWriter;
 import java.net.Socket;
 import java.util.ArrayList;
 
@@ -9,7 +10,13 @@ public class FileInfo {
     //Remove complete
     private int state;
 
+    //Regular ports which Dstores give themselves
     private ArrayList<Integer> storages;
+
+    //The actual socket port from which they communicate with controller
+    private ArrayList<Integer> storagesContactPorts;
+
+    private ArrayList<Integer> availableStorages;
 
     private int fileSize;
 
@@ -19,15 +26,19 @@ public class FileInfo {
 
     private Socket lastModifier;
 
-    public FileInfo(int fileSize, int replicationFactor, String ports, Socket lastModifier)
+    private PrintWriter lastModifierPrint;
+
+    public FileInfo(int fileSize, int replicationFactor, String ports, ArrayList<Integer> storagesContactPorts, Socket lastModifier, PrintWriter lastModifierPrint)
     {
         this.fileSize = fileSize;
         state = States.STORE_IN_PROGRESS;
         storages = new ArrayList<Integer>();
         setStorages(ports);
+        this.storagesContactPorts = storagesContactPorts;
         this.lastModifier = lastModifier;
         this.replicationFactor = replicationFactor;
         remainingAcks = replicationFactor;
+        this.lastModifierPrint = lastModifierPrint;
     }
 
     //Decreases ACKs required by one.
@@ -51,16 +62,24 @@ public class FileInfo {
         return false;
     }
 
+    //Creates a new Array list that copies storages
+    //This stores available storages from which to attempt LOADS or RELOADS
+    public void initializeAvailableStorages()
+    {
+        availableStorages = new ArrayList<Integer>(storages);
+    }
+
     public void setState(int state)
     {
         this.state = state;
     }
 
-    public void setStateRemove(Socket lastModifier)
+    public void setStateRemove(Socket lastModifier, PrintWriter lastModifierPrint)
     {
         state = States.REMOVE_IN_PROGRESS;
         remainingAcks = replicationFactor;
         this.lastModifier = lastModifier;
+        this.lastModifierPrint = lastModifierPrint;
     }
 
     public int getState()
@@ -87,18 +106,33 @@ public class FileInfo {
         }
     }
 
-    public String getStorages()
+    // public void setStoragePorts(String input)
+    // {
+    //     String[] list = input.split(" ");
+    //     for(String stor: list)
+    //     {
+    //         storagesContactPorts.add(Integer.parseInt(stor));
+    //     }
+    // }
+
+    public ArrayList<Integer> getStorages()
     {
-        String result = "";
-        for(Integer stor: storages)
-        {
-            result += Integer.toString(stor) + " ";
-        }
-        if(result.length() > 0)
-        {
-            result.substring(0, result.length() - 1);
-        }
-        return result;
+        return new ArrayList<Integer>(storages);
+    }
+
+    public ArrayList<Integer> getStoragesContactPorts()
+    {
+        return new ArrayList<Integer>(storagesContactPorts);
+    }
+
+    public Integer getSingleAvailable()
+    {
+        return availableStorages.get(0);
+    }
+
+    public void removeFirstAvailable()
+    {
+        availableStorages.remove(0);
     }
 
     public void removeStorage(Integer port)
@@ -109,6 +143,11 @@ public class FileInfo {
     public Socket getModifier()
     {
         return lastModifier;
+    }
+
+    public PrintWriter getModifierPrint()
+    {
+        return lastModifierPrint;
     }
 
     //No remove file functionality.

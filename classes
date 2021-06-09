@@ -1,5 +1,6 @@
 Controller.java
 ControllerLogger.java
+CustomPair.java
 Dstore.java
 DstoreLogger.java
 FileInfo.java

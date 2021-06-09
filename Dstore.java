@@ -1,7 +1,7 @@
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileOutputStream;
-import java.io.FileWriter;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
@@ -13,7 +13,7 @@ import java.net.Socket;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.HashMap;
+import java.sql.Timestamp;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -24,6 +24,7 @@ public class Dstore {
     private int timeout;
     private String fileFolder;
 
+    private Object fileLock = new Object();
     //Hashmap with clients
     private ConcurrentHashMap<String, Integer> fileIndex;
 
@@ -36,7 +37,12 @@ public class Dstore {
 
         fileIndex = new ConcurrentHashMap<String, Integer>();
 
-
+        try {
+            DstoreLogger.init(Logger.LoggingType.ON_FILE_AND_TERMINAL, port);
+        } catch (IOException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
 
         mainSequence();
     }
@@ -68,17 +74,19 @@ public class Dstore {
                     {
                         Files.createDirectory(folderPath);
                     }
-                    System.out.println("Cleared FileFolder");
+                    log("Cleared FileFolder");
                     
                     //Deletes previous entry and creates a new storage directory
                     try
                     {   
-                        controllerOutput.println(Protocol.JOIN_TOKEN + " " + port);
-                        System.out.println("Sent JOIN request to Controller.");
+                        String msg = Protocol.JOIN_TOKEN + " " + port;
+                        controllerOutput.println(msg);
+                        DstoreLogger.getInstance().messageSent(controller, msg);
+                        log("Sent JOIN request to Controller.");
                     }
                     catch(Exception e)
                     {
-                        System.out.println("Could not write to controller "+e);
+                        log("Could not write to controller "+e);
                         return;
                     }
 
@@ -88,46 +96,114 @@ public class Dstore {
                         {
                             if(controllerInput.ready())
                             {
-                                String[] message = controllerInput.readLine().split(" ");
+                                String input = controllerInput.readLine();
+                                String[] message = input.split(" ");
+
+                                if(input.equals(null))
+                                {
+                                    controllerInput.close();
+                                    break;
+                                }
+
+                                DstoreLogger.getInstance().messageReceived(controller, input);
+
                                 String command = message[0];
 
                                 //Controller List Command
                                 if(command.equals(Protocol.LIST_TOKEN))
                                 {   
-                                    System.out.println("Controller " + controller.getPort() + " sent command LIST .");
+                                    try
+                                    {
+                                        String test = message[1];
+                                        log("Command " + Protocol.LIST_TOKEN + " contained more arguments than expected. Continuing.");
+                                        continue;
+                                    }
+                                    catch(Exception ignored){}
+
+                                    log("Controller " + controller.getPort() + " sent command LIST .");
 
                                     String fileList = "";
-                                    Set<String> keys = fileIndex.keySet();
+                                    Set<String> keys;
+                                    synchronized(fileLock)
+                                    {
+                                        keys = fileIndex.keySet();
+                                    }
+
                                     for(String key: keys)
                                     {
                                         fileList += key + " ";
                                     }
                                     fileList = fileList.substring(0, fileList.length()-1);
 
-                                    controllerOutput.println(Protocol.LIST_TOKEN + " " + fileList);
+                                    String msg = Protocol.LIST_TOKEN + " " + fileList;
+                                    controllerOutput.println(msg);
+                                    DstoreLogger.getInstance().messageSent(controller, msg);
                                 }
                                 //Controller REMOVE command
                                 else if(command.equals(Protocol.REMOVE_TOKEN))
                                 {   
-                                    String fileName = message[1];
-                                    System.out.println("Controller " + controller.getPort() + " sent command REMOVE for file " + fileName);
+                                    String fileName;
 
-                                    fileIndex.remove(fileName);
+                                    try
+                                    {
+                                        fileName = message[1];
+                                    }
+                                    catch(Exception e)
+                                    {
+                                        log("Malformed content of message of command: " + Protocol.REMOVE_TOKEN);
+                                        continue;
+                                    }
+
+                                    try
+                                    {
+                                        String test = message[2];
+                                        log("Command " + Protocol.REMOVE_TOKEN + " contained more arguments than expected. Continuing.");
+                                        continue;
+                                    }
+                                    catch(Exception ignored){}
+
+                                    boolean isContained = false;
+
+                                    synchronized(fileLock)
+                                    {
+                                        if(fileIndex.containsKey(fileName))
+                                        {
+                                            isContained = true;
+                                        }
+                                    }
+
+                                    if(!isContained)
+                                    {
+                                        log("Controller " + controller.getPort() + " requested to remove file " + fileName + " " + " but it doesn't exist.");
+                                        String msg = Protocol.ERROR_FILE_DOES_NOT_EXIST_TOKEN + " " + fileName;
+                                        controllerOutput.println(msg);
+                                        DstoreLogger.getInstance().messageSent(controller, msg);
+                                        continue;
+                                    }
+
+                                    log("Controller " + controller.getPort() + " sent command REMOVE for file " + fileName);
+
+                                    synchronized(fileLock)
+                                    {
+                                        fileIndex.remove(fileName);
+                                    }
 
                                     File file = new File("");
                                     String currentPath = file.getAbsolutePath();
                                     file = new File(currentPath + File.separator + fileFolder + File.separator + fileName);
                                     file.delete();
 
-                                    System.out.println("File " + fileName + " successfully removed.");
+                                    log("File " + fileName + " successfully removed.");
 
-                                    controllerOutput.println(Protocol.REMOVE_ACK_TOKEN + " " + fileName);
+                                    String msg = Protocol.REMOVE_ACK_TOKEN + " " + fileName;
+                                    controllerOutput.println(msg);
+                                    DstoreLogger.getInstance().messageSent(controller, msg);
                                 }
                             }
                         }
                         catch(Exception e)
                         {
-                            System.out.println("Could not read from controller"+e);
+                            log("Could not read from controller"+e);
                         }
                     }
 
@@ -144,13 +220,13 @@ public class Dstore {
                 {
                     try
                     {
-                        System.out.println("Awaiting connecting with client.");
+                        log("Awaiting connecting with client.");
                         Socket client = ss.accept();
-                        System.out.println("Connection with client: " + client.getPort() + " established.");
+                        log("Connection with client: " + client.getPort() + " established.");
                         //Probably not required
                         // if(client.getPort() == cport)
                         // {
-                        //     System.out.println("Controller attempted to connect as a client!!!");
+                        //     log("Controller attempted to connect as a client!!!");
                         //     continue;
                         // }
 
@@ -170,50 +246,120 @@ public class Dstore {
                                     {
                                         if(clientInput.ready())
                                         {
-                                            String[] message = clientInput.readLine().split(" ");
+                                            String input = clientInput.readLine();
+                                            String[] message = input.split(" ");
+
+                                            if(input.equals(null))
+                                            {
+                                                clientInput.close();
+                                                break;
+                                            }
+
+                                            DstoreLogger.getInstance().messageReceived(client, input);
+
                                             String command = message[0];
         
                                             if(command.equals(Protocol.STORE_TOKEN))
                                             {
-                                                String fileName = message[1];
-                                                int fileSize = Integer.parseInt(message[2]);
+                                                String fileName;
+                                                int fileSize;
 
-                                                System.out.println("Client " + client.getPort() + " sent command STORE . FileName: " + fileName + " FileSize: " + fileSize);
+                                                try
+                                                {
+                                                    fileName = message[1];
+                                                    fileSize = Integer.parseInt(message[2]);
+
+                                                }
+                                                catch(Exception e)
+                                                {
+                                                    log("Malformed content of message of command: " + Protocol.STORE_TOKEN);
+                                                    continue;
+                                                }
+
+                                                try
+                                                {
+                                                    String test = message[3];
+                                                    log("Command " + Protocol.STORE_TOKEN + " contained more arguments than expected. Continuing.");
+                                                    continue;
+                                                }
+                                                catch(Exception ignored){}
+
+                                                log("Client " + client.getPort() + " sent command STORE . FileName: " + fileName + " FileSize: " + fileSize);
                                                 
-                                                clientOutput.println(Protocol.ACK_TOKEN);
+                                                String msg = Protocol.ACK_TOKEN;
+                                                clientOutput.println(msg);
+                                                DstoreLogger.getInstance().messageSent(client, msg);
 
-                                                System.out.println("Sent ACK to client " + client.getPort() + " for file: " + fileName);
+                                                log("Sent ACK to client " + client.getPort() + " for file: " + fileName);
 
                                                 File file = new File("");
                                                 String currentPath = file.getAbsolutePath();
                                                 file = new File(currentPath + File.separator + fileFolder + File.separator + fileName);
         
-                                                System.out.println("Starting to receive file of size: " + Integer.toString(fileSize));
+                                                log("Starting to receive file of size: " + Integer.toString(fileSize));
 
                                                 byte[] contentBuf = clientInputStream.readNBytes(fileSize);
-                                                System.out.println("Received file " + fileName + " from client " + client.getPort());
+                                                log("Received file " + fileName + " from client " + client.getPort());
         
                                                 FileOutputStream fo = new FileOutputStream(file);
                                                 fo.write(contentBuf);
                                                 fo.close();
                                                 
-                                                System.out.println("Sending STORE_ACK token to controller " + controller.getPort());
-                                                controllerOutput.println(Protocol.STORE_ACK_TOKEN + " " + fileName);
+                                                log("Sending STORE_ACK token to controller " + controller.getPort());
+                                                msg = Protocol.STORE_ACK_TOKEN + " " + fileName;
+                                                controllerOutput.println(msg);
+                                                DstoreLogger.getInstance().messageSent(controller, msg);
 
-                                                fileIndex.put(fileName, fileSize);
+                                                synchronized(fileLock)
+                                                {
+                                                    fileIndex.put(fileName, fileSize);
+                                                }
 
                                                 client.close();
-                                                System.out.println("Client " + client.getPort() + " request complete. Closing connection.");
+                                                log("Client " + client.getPort() + " request complete. Closing connection.");
                                                 break;
                                             }
                                             else if(command.equals(Protocol.LOAD_DATA_TOKEN))
                                             {
-                                                String fileName = message[1];
+                                                String fileName;
 
-                                                System.out.println("Client " + client.getPort() + " sent command LOAD_DATA . FileName: " + fileName);
+                                                try
+                                                {
+                                                    fileName = message[1];
+                                                }
+                                                catch(Exception e)
+                                                {
+                                                    log("Malformed content of message of command: " + Protocol.LOAD_DATA_TOKEN);
+                                                    continue;
+                                                }
+
+                                                try
+                                                {
+                                                    String test = message[2];
+                                                    log("Command " + Protocol.LOAD_DATA_TOKEN + " contained more arguments than expected. Continuing.");
+                                                    continue;
+                                                }
+                                                catch(Exception ignored){}
+
+                                                log("Client " + client.getPort() + " sent command LOAD_DATA . FileName: " + fileName);
                                                 
+                                                boolean isContained = false;
+
+                                                synchronized(fileLock)
+                                                {
+                                                    if(fileIndex.containsKey(fileName))
+                                                    {
+                                                        isContained = true;
+                                                    }
+                                                }
+
                                                 //Might require synchronization
-                                                if(fileIndex.containsKey(fileName))
+                                                //If the file is contained when the check is made, but after lock drops,
+                                                //The next operation on the fileIndex is remove,
+                                                //It can possibly remove file while this unsynchronized snippet of code executes
+                                                
+                                                //Lmao who cares, it probably won't happen
+                                                if(isContained)
                                                 {
                                                     File file = new File("");
                                                     String currentPath = file.getAbsolutePath();
@@ -221,7 +367,7 @@ public class Dstore {
 
                                                     byte[] bytes = Files.readAllBytes(file.toPath());
 
-                                                    System.out.println("Sending to client " + client.getPort() + " the contents of " + fileName);                                                    clientOutputStream.write(bytes);
+                                                    log("Sending to client " + client.getPort() + " the contents of " + fileName);                                                    clientOutputStream.write(bytes);
                                                     clientOutputStream.flush();
                                                     client.close();
                                                 }
@@ -235,31 +381,37 @@ public class Dstore {
                                     }
                                     catch(Exception e)
                                     {
-                                        System.out.println("error "+e);
+                                        log("error "+e);
                                     }
                                 }
                             }
                             catch(Exception e)
                             {
-                                System.out.println("error " +e);
+                                log("error " +e);
                             }
                         }).start();
                     }
                     catch(Exception e)
                     {
-                        System.out.println("error "+e);
+                        log("error "+e);
                     }
                 }
             }
             catch(Exception e)
             {
-                System.out.println("error "+e);
+                log("error "+e);
             }
         }
         catch(Exception e)
         {
-            System.out.println("error "+e);
+            log("error "+e);
         }
+    }
+
+    private void log(String message)
+    {
+        Timestamp timestamp = new Timestamp(System.currentTimeMillis());
+        System.out.println(timestamp + " " + message);
     }
 
     public static void main(String[] args)

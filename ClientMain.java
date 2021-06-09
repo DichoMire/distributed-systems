@@ -17,10 +17,18 @@ public class ClientMain {
 		if (!uploadFolder.exists())
 			throw new RuntimeException("to_store folder does not exist");
 		
-		//testClient(cport, timeout, downloadFolder);
+		// testClient(cport, timeout, downloadFolder);
+
+		// for (int i = 0; i < 10; i++) {
+		// 	new Thread() {
+		// 		public void run() {
+		// 			testClient(cport, timeout, downloadFolder);
+		// 		}
+		// 	}.start();
+		// }
 		
-		//example to launch a number of concurrent clients, each doing the same operations
-		for (int i = 0; i < 1; i++) {
+		// example to launch a number of concurrent clients, each doing the same operations
+		for (int i = 0; i < 2; i++) {
 			new Thread() {
 				public void run() {
 					test2Client(cport, timeout, downloadFolder, uploadFolder);
@@ -54,7 +62,7 @@ public class ClientMain {
 			for (int i = 0; i < list.length/2; i++) {
 				String fileToRemove = list[random.nextInt(list.length)];
 				try {
-					client.remove(fileToRemove);
+					//client.remove(fileToRemove);
 				} catch (Exception e) {
 					System.out.println("Error remove file " + fileToRemove);
 					e.printStackTrace();
